@@ -68,6 +68,8 @@
   }
   button:focus-visible { outline: 4px solid var(--chip); outline-offset: 3px; }
   button:disabled { opacity: 0.6; cursor: default; }
+  .sala-arriba { font-size: 18px; font-weight: 700; margin-top: 4px; }
+  #conexion { font-size: 15px; color: #4A4A68; margin-top: 6px; }
   #error { color: #B3261E; font-weight: 700; font-size: 17px; margin-top: 12px; min-height: 1em; }
   #dentro { display: none; text-align: center; }
   #dentro .nombre {
@@ -88,6 +90,7 @@
 <main>
   <section class="tarjeta" id="entrada">
     <h1>Únete al juego</h1>
+    <p class="sala-arriba" id="sala-arriba"></p>
     <p class="ayuda">Escribe tu apodo para aparecer en la TV.</p>
 
     <div id="campo-pin">
@@ -107,6 +110,7 @@
     <div class="nombre" id="mi-nombre"></div>
     <p>Mira la TV: tu nombre ya aparece ahí. Espera a que empiece el juego.</p>
     <p class="sala" id="mi-sala"></p>
+    <p id="conexion"></p>
   </section>
 </main>
 
@@ -114,6 +118,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
+  const VERSION = '4';
 
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -122,47 +127,64 @@
   const inputNombre = document.getElementById('nombre');
   const boton = document.getElementById('entrar');
   const error = document.getElementById('error');
+  const salaArriba = document.getElementById('sala-arriba');
+  const conexion = document.getElementById('conexion');
 
-  // 1. Si llegó por QR, el PIN viene en el enlace y no hace falta escribirlo
+  // 1. Si llegó por QR, el PIN viene en el enlace y se muestra arriba
   const pinDelEnlace = new URLSearchParams(location.search).get('sala');
   if (pinDelEnlace && /^\d{6}$/.test(pinDelEnlace)) {
     inputPin.value = pinDelEnlace;
     campoPin.style.display = 'none';
+    salaArriba.textContent = 'Sala ' + pinDelEnlace + ' (v' + VERSION + ')';
+  } else {
+    salaArriba.textContent = 'Escribe el PIN que aparece en la TV. (v' + VERSION + ')';
   }
 
   // 2. Un identificador único para este teléfono
   const miId = 'j-' + Math.random().toString(36).slice(2, 10);
+  let canal = null;
+  let miNombre = '';
+  let avisos = 0;
+
+  function avisarALaTV() {
+    canal.send({ type: 'broadcast', event: 'hola', payload: { id: miId, nombre: miNombre } });
+    avisos++;
+    conexion.textContent = 'Conectado. Avisos enviados a la TV: ' + avisos;
+  }
 
   // 3. Entrar a la sala y avisar a la TV
   boton.addEventListener('click', () => {
     const pin = inputPin.value.trim();
-    const nombre = inputNombre.value.trim();
+    miNombre = inputNombre.value.trim();
     error.textContent = '';
 
     if (!/^\d{6}$/.test(pin)) { error.textContent = 'El PIN debe tener 6 números.'; return; }
-    if (!nombre) { error.textContent = 'Escribe un apodo para entrar.'; return; }
+    if (!miNombre) { error.textContent = 'Escribe un apodo para entrar.'; return; }
 
     boton.disabled = true;
     boton.textContent = 'Entrando…';
 
-    const canal = cliente.channel('sala-' + pin, {
-      config: { presence: { key: miId, enabled: true } }
-    });
-    canal.on('presence', { event: 'sync' }, () => {});
+    canal = cliente.channel('sala-' + pin);
 
-    canal.subscribe(async situacion => {
+    canal.subscribe(situacion => {
       if (situacion === 'SUBSCRIBED') {
-        await canal.track({ nombre: nombre });
         document.getElementById('entrada').style.display = 'none';
         document.getElementById('dentro').style.display = 'block';
-        document.getElementById('mi-nombre').textContent = nombre;
+        document.getElementById('mi-nombre').textContent = miNombre;
         document.getElementById('mi-sala').textContent = 'Sala ' + pin;
+        avisarALaTV();
+        setInterval(avisarALaTV, 4000);
       } else if (situacion === 'CHANNEL_ERROR' || situacion === 'TIMED_OUT') {
         boton.disabled = false;
         boton.textContent = 'Entrar a la sala';
         error.textContent = 'Sin conexión con el servidor. Revisa internet e inténtalo de nuevo.';
       }
     });
+  });
+
+  // 4. Al cerrar la página, avisar que se fue
+  window.addEventListener('pagehide', () => {
+    if (canal) canal.send({ type: 'broadcast', event: 'adios', payload: { id: miId } });
   });
 
   inputNombre.addEventListener('keydown', e => { if (e.key === 'Enter') boton.click(); });
