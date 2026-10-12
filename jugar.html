@@ -145,7 +145,10 @@
     boton.disabled = true;
     boton.textContent = 'Entrando…';
 
-    const canal = cliente.channel('sala-' + pin, { config: { presence: { key: miId } } });
+    const canal = cliente.channel('sala-' + pin, {
+      config: { presence: { key: miId, enabled: true } }
+    });
+    canal.on('presence', { event: 'sync' }, () => {});
 
     canal.subscribe(async situacion => {
       if (situacion === 'SUBSCRIBED') {
