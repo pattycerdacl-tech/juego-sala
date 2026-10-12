@@ -18,6 +18,10 @@
     --blanco: #FFFFFF;
     --suave: #C9D0FF;
     --chip: #FF7A59;
+    --op0: #E5484D;
+    --op1: #FFB224;
+    --op2: #30A46C;
+    --op3: #8E4EC6;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
@@ -27,7 +31,10 @@
     color: var(--blanco);
     overflow: hidden;
   }
-  main {
+  [hidden] { display: none !important; }
+
+  /* ---------- Sala de espera ---------- */
+  #lobby {
     height: 100%;
     display: grid;
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
@@ -54,55 +61,89 @@
   }
   #qr img, #qr canvas { width: 30vh !important; height: 30vh !important; display: block; }
   .pin-texto { font-size: 1.4vw; font-weight: 500; }
-  #pin {
-    font-size: 6vw;
-    font-weight: 800;
-    letter-spacing: 0.6vw;
-    line-height: 1;
-    margin-top: 0.5vh;
-  }
+  #pin { font-size: 6vw; font-weight: 800; letter-spacing: 0.6vw; line-height: 1; margin-top: 0.5vh; }
   .sala h2 { font-size: 3vw; font-weight: 800; }
   .sala h2 span {
-    display: inline-block;
-    min-width: 4.5vw;
-    text-align: center;
-    background: var(--blanco);
-    color: var(--fondo);
-    border-radius: 3vw;
-    padding: 0 1.2vw;
-    margin-left: 0.8vw;
+    display: inline-block; min-width: 4.5vw; text-align: center;
+    background: var(--blanco); color: var(--fondo);
+    border-radius: 3vw; padding: 0 1.2vw; margin-left: 0.8vw;
   }
   #estado { font-size: 1.5vw; color: var(--suave); margin-top: 1vh; }
-  #jugadores {
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1.2vw;
-    margin-top: 4vh;
-    max-height: 60vh;
-    overflow: hidden;
-  }
+  #jugadores { list-style: none; display: flex; flex-wrap: wrap; gap: 1.2vw; margin-top: 4vh; max-height: 46vh; overflow: hidden; }
   #jugadores li {
-    background: var(--chip);
-    color: var(--tinta);
-    font-size: 2vw;
-    font-weight: 700;
-    padding: 0.6vh 1.6vw;
-    border-radius: 3vw;
+    background: var(--chip); color: var(--tinta);
+    font-size: 2vw; font-weight: 700;
+    padding: 0.6vh 1.6vw; border-radius: 3vw;
     animation: entra 0.35s ease-out;
   }
   #vacio { font-size: 1.8vw; color: var(--suave); margin-top: 4vh; }
-  @keyframes entra {
-    from { transform: scale(0.6); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+
+  .boton {
+    font: inherit; font-size: 2.2vw; font-weight: 800;
+    margin-top: 4vh; padding: 1.2vh 3vw;
+    border: none; border-radius: 3vw;
+    background: var(--boleto); color: var(--tinta);
+    cursor: pointer;
+    box-shadow: 0 0.6vw 0 #C9A21F;
   }
-  @media (prefers-reduced-motion: reduce) {
-    #jugadores li { animation: none; }
+  .boton:disabled { opacity: 0.45; cursor: default; }
+  .boton:focus-visible { outline: 0.4vw solid var(--blanco); outline-offset: 0.4vw; }
+
+  /* ---------- Pregunta ---------- */
+  #juego {
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    column-gap: 3vw;
+    padding: 4vh 4vw;
   }
+  .barra { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; font-size: 1.8vw; color: var(--suave); font-weight: 700; }
+  #reloj {
+    width: 7vw; height: 7vw; border-radius: 50%;
+    background: var(--blanco); color: var(--fondo);
+    display: grid; place-items: center;
+    font-size: 3.4vw; font-weight: 800;
+  }
+  #texto-pregunta { grid-column: 1; font-size: 3.6vw; font-weight: 800; line-height: 1.1; margin: 2vh 0 3vh; max-width: 60ch; }
+  #opciones { grid-column: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 1.6vw; align-content: stretch; }
+  .opcion {
+    border-radius: 1.6vw; padding: 2vh 2vw;
+    display: flex; align-items: center; gap: 1.4vw;
+    font-size: 2.6vw; font-weight: 700; color: var(--blanco);
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .opcion .forma { font-size: 2.4vw; width: 3vw; text-align: center; }
+  .opcion .votos { margin-left: auto; font-size: 2.2vw; background: rgba(0,0,0,0.22); border-radius: 2vw; padding: 0 1.2vw; }
+  .opcion[data-i="0"] { background: var(--op0); }
+  .opcion[data-i="1"] { background: var(--op1); color: var(--tinta); }
+  .opcion[data-i="2"] { background: var(--op2); }
+  .opcion[data-i="3"] { background: var(--op3); }
+  .opcion.apagada { opacity: 0.28; }
+  .opcion.correcta { transform: scale(1.03); box-shadow: 0 0 0 0.5vw var(--blanco); }
+  .pie { grid-column: 1; display: flex; justify-content: space-between; align-items: center; margin-top: 2vh; }
+  #respondieron { font-size: 1.8vw; color: var(--suave); }
+  .pie .boton { margin-top: 0; }
+
+  #ranking-caja { grid-column: 2; grid-row: 3 / 5; width: 26vw; background: var(--fondo-2); border-radius: 1.6vw; padding: 2.5vh 2vw; align-self: start; }
+  #ranking-caja h2 { font-size: 2.2vw; font-weight: 800; margin-bottom: 1vh; }
+  .tabla { list-style: none; }
+  .tabla li { display: flex; justify-content: space-between; font-size: 1.9vw; font-weight: 700; padding: 0.5vh 0; border-bottom: 0.15vw solid rgba(255,255,255,0.15); }
+  .tabla li span:last-child { color: var(--boleto); }
+
+  /* ---------- Final ---------- */
+  #final { height: 100%; display: grid; place-content: center; text-align: center; padding: 4vh 4vw; }
+  #final h1 { font-size: 5vw; font-weight: 800; }
+  #ganador { font-size: 2.4vw; color: var(--boleto); margin: 1vh 0 3vh; }
+  #podio { width: 44vw; margin: 0 auto; }
+
+  @keyframes entra { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { #jugadores li { animation: none; } .opcion { transition: none; } }
 </style>
 </head>
 <body>
-<main>
+
+<main id="lobby">
   <section class="boleto">
     <h1>¡A jugar!</h1>
     <p>Escanea el código con tu teléfono</p>
@@ -110,89 +151,233 @@
     <div class="pin-texto">o entra con el PIN de la sala</div>
     <div id="pin">------</div>
   </section>
-
   <section class="sala">
     <h2>Jugadores <span id="cuenta">0</span></h2>
     <p id="estado">Conectando con el servidor…</p>
     <p id="vacio">Todavía no hay nadie. El primero en escanear el código aparecerá aquí.</p>
     <ul id="jugadores"></ul>
+    <button class="boton" id="empezar" disabled>Empezar juego</button>
   </section>
+</main>
+
+<main id="juego" hidden>
+  <div class="barra"><span id="num-pregunta">Pregunta 1 de 3</span><span id="reloj">20</span></div>
+  <h1 id="texto-pregunta"></h1>
+  <div id="opciones">
+    <div class="opcion" data-i="0"><span class="forma">▲</span><span class="txt"></span><span class="votos" hidden></span></div>
+    <div class="opcion" data-i="1"><span class="forma">◆</span><span class="txt"></span><span class="votos" hidden></span></div>
+    <div class="opcion" data-i="2"><span class="forma">●</span><span class="txt"></span><span class="votos" hidden></span></div>
+    <div class="opcion" data-i="3"><span class="forma">■</span><span class="txt"></span><span class="votos" hidden></span></div>
+  </div>
+  <aside id="ranking-caja" hidden><h2>Ranking</h2><ol class="tabla" id="ranking"></ol></aside>
+  <div class="pie">
+    <span id="respondieron">Respuestas: 0 de 0</span>
+    <button class="boton" id="siguiente" hidden>Siguiente pregunta</button>
+  </div>
+</main>
+
+<main id="final" hidden>
+  <h1>¡Fin del juego!</h1>
+  <p id="ganador"></p>
+  <ol class="tabla" id="podio"></ol>
+  <div><button class="boton" id="otra">Jugar otra vez</button></div>
 </main>
 
 <script>
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '4';
+  const VERSION = '5';
 
-  // 1. Crear un PIN de sala de 6 dígitos
+  // Preguntas de prueba (más adelante vendrán del panel de creación)
+  const TIEMPO = 20; // segundos por pregunta
+  const PREGUNTAS = [
+    { texto: '¿Cuál es el planeta más grande del sistema solar?', opciones: ['Júpiter', 'Saturno', 'Tierra', 'Marte'], correcta: 0 },
+    { texto: '¿Cuántas patas tiene una araña?', opciones: ['6', '8', '10', '12'], correcta: 1 },
+    { texto: '¿En qué continente está Egipto?', opciones: ['Asia', 'Europa', 'África', 'Oceanía'], correcta: 2 }
+  ];
+
+  const $ = id => document.getElementById(id);
+
+  // ---------- 1. Sala, PIN y QR ----------
   const pin = String(Math.floor(100000 + Math.random() * 900000));
-  document.getElementById('pin').textContent = pin;
-
-  // 2. Armar el enlace para los teléfonos y dibujar el QR
+  $('pin').textContent = pin;
   const carpeta = location.origin + location.pathname.replace(/[^/]*$/, '');
-  const enlaceJugador = carpeta + 'jugar.html?sala=' + pin + '&v=' + VERSION;
-  new QRCode(document.getElementById('qr'), {
-    text: enlaceJugador,
-    width: 512,
-    height: 512,
-    correctLevel: QRCode.CorrectLevel.M
+  new QRCode($('qr'), {
+    text: carpeta + 'jugar.html?sala=' + pin + '&v=' + VERSION,
+    width: 512, height: 512, correctLevel: QRCode.CorrectLevel.M
   });
-
-  // 3. Conectarse a la sala en tiempo real
-  const estado = document.getElementById('estado');
-  const lista = document.getElementById('jugadores');
-  const cuenta = document.getElementById('cuenta');
-  const vacio = document.getElementById('vacio');
 
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const canal = cliente.channel('sala-' + pin);
+  const enviar = (evento, datos) => canal.send({ type: 'broadcast', event: evento, payload: datos });
 
-  // Jugadores conocidos: id -> { nombre, visto }
-  const jugadores = new Map();
+  // ---------- 2. Jugadores conectados ----------
+  const jugadores = new Map();   // id -> { nombre, visto }
+  const puntajes = new Map();    // id -> { nombre, puntos }
   let ultimaLista = '';
 
   function mostrarJugadores() {
     const nombres = [...jugadores.values()].map(j => j.nombre);
+    $('empezar').disabled = nombres.length === 0;
     const firma = nombres.join('|');
-    if (firma === ultimaLista) return; // nada cambió: no redibujar
+    if (firma === ultimaLista) return;
     ultimaLista = firma;
-    lista.innerHTML = '';
-    nombres.forEach(nombre => {
-      const li = document.createElement('li');
-      li.textContent = nombre;
-      lista.appendChild(li);
-    });
-    cuenta.textContent = nombres.length;
-    vacio.style.display = nombres.length ? 'none' : 'block';
+    $('jugadores').innerHTML = '';
+    nombres.forEach(n => { const li = document.createElement('li'); li.textContent = n; $('jugadores').appendChild(li); });
+    $('cuenta').textContent = nombres.length;
+    $('vacio').style.display = nombres.length ? 'none' : 'block';
   }
 
-  // Un teléfono avisa "hola" al entrar y cada 4 segundos mientras siga ahí
   canal.on('broadcast', { event: 'hola' }, ({ payload }) => {
     if (!payload || !payload.id || !payload.nombre) return;
-    jugadores.set(payload.id, { nombre: String(payload.nombre).slice(0, 16), visto: Date.now() });
+    const nombre = String(payload.nombre).slice(0, 16);
+    jugadores.set(payload.id, { nombre, visto: Date.now() });
+    if (puntajes.has(payload.id)) puntajes.get(payload.id).nombre = nombre;
     mostrarJugadores();
   });
-
-  // Un teléfono avisa "adios" al cerrar la página
   canal.on('broadcast', { event: 'adios' }, ({ payload }) => {
     if (payload && jugadores.delete(payload.id)) mostrarJugadores();
   });
-
-  // Si un teléfono deja de avisar por 15 segundos, se quita de la lista
   setInterval(() => {
     const ahora = Date.now();
-    for (const [id, j] of jugadores) {
-      if (ahora - j.visto > 15000) jugadores.delete(id);
-    }
+    for (const [id, j] of jugadores) if (ahora - j.visto > 15000) jugadores.delete(id);
     mostrarJugadores();
   }, 3000);
 
+  // ---------- 3. El juego ----------
+  let fase = 'lobby';
+  let indice = -1;
+  let inicio = 0;
+  let relojId = null;
+  const respuestas = new Map(); // id -> { opcion, ms }
+
+  function verPantalla(cual) {
+    ['lobby', 'juego', 'final'].forEach(p => $(p).hidden = p !== cual);
+  }
+
+  function siguientePregunta() {
+    indice++;
+    if (indice >= PREGUNTAS.length) return finalizar();
+    const p = PREGUNTAS[indice];
+    fase = 'pregunta';
+    respuestas.clear();
+    verPantalla('juego');
+    $('num-pregunta').textContent = 'Pregunta ' + (indice + 1) + ' de ' + PREGUNTAS.length;
+    $('texto-pregunta').textContent = p.texto;
+    document.querySelectorAll('.opcion').forEach((el, i) => {
+      el.classList.remove('apagada', 'correcta');
+      el.querySelector('.txt').textContent = p.opciones[i];
+      el.querySelector('.votos').hidden = true;
+    });
+    $('ranking-caja').hidden = true;
+    $('siguiente').hidden = true;
+    actualizarConteo();
+    inicio = Date.now();
+    enviar('pregunta', { indice, total: PREGUNTAS.length, texto: p.texto, opciones: p.opciones, tiempo: TIEMPO });
+    clearInterval(relojId);
+    relojId = setInterval(() => {
+      const quedan = Math.max(0, Math.ceil(TIEMPO - (Date.now() - inicio) / 1000));
+      $('reloj').textContent = quedan;
+      if (quedan === 0) revelar();
+    }, 250);
+  }
+
+  function actualizarConteo() {
+    $('respondieron').textContent = 'Respuestas: ' + respuestas.size + ' de ' + jugadores.size;
+  }
+
+  canal.on('broadcast', { event: 'respuesta' }, ({ payload }) => {
+    if (fase !== 'pregunta' || !payload || payload.indice !== indice || respuestas.has(payload.id)) return;
+    const opcion = Number(payload.opcion);
+    if (!(opcion >= 0 && opcion <= 3)) return;
+    respuestas.set(payload.id, { opcion, ms: Date.now() - inicio });
+    actualizarConteo();
+    if (respuestas.size >= jugadores.size) revelar();
+  });
+
+  function revelar() {
+    if (fase !== 'pregunta') return;
+    fase = 'revelado';
+    clearInterval(relojId);
+    const p = PREGUNTAS[indice];
+    const votos = [0, 0, 0, 0];
+    const resultado = {};
+
+    for (const [id, r] of respuestas) {
+      votos[r.opcion]++;
+      const acerto = r.opcion === p.correcta;
+      const ganados = acerto ? Math.round(1000 * (1 - Math.min(r.ms, TIEMPO * 1000) / (TIEMPO * 1000) / 2)) : 0;
+      if (!puntajes.has(id)) puntajes.set(id, { nombre: (jugadores.get(id) || {}).nombre || 'Jugador', puntos: 0 });
+      puntajes.get(id).puntos += ganados;
+      resultado[id] = { acerto, ganados };
+    }
+    for (const [id, s] of puntajes) {
+      if (!resultado[id]) resultado[id] = { acerto: false, ganados: 0, sinRespuesta: true };
+      resultado[id].total = s.puntos;
+    }
+
+    document.querySelectorAll('.opcion').forEach((el, i) => {
+      el.classList.toggle('correcta', i === p.correcta);
+      el.classList.toggle('apagada', i !== p.correcta);
+      const v = el.querySelector('.votos');
+      v.textContent = votos[i];
+      v.hidden = false;
+    });
+
+    mostrarTabla($('ranking'), 5);
+    $('ranking-caja').hidden = false;
+    $('siguiente').textContent = indice + 1 < PREGUNTAS.length ? 'Siguiente pregunta' : 'Ver resultados';
+    $('siguiente').hidden = false;
+    $('siguiente').focus();
+
+    enviar('resultado', { indice, correcta: p.correcta, resultado });
+  }
+
+  function ordenados() {
+    return [...puntajes.entries()].map(([id, s]) => ({ id, nombre: s.nombre, puntos: s.puntos }))
+      .sort((a, b) => b.puntos - a.puntos);
+  }
+
+  function mostrarTabla(ol, max) {
+    ol.innerHTML = '';
+    ordenados().slice(0, max).forEach((j, i) => {
+      const li = document.createElement('li');
+      const a = document.createElement('span'); a.textContent = (i + 1) + '. ' + j.nombre;
+      const b = document.createElement('span'); b.textContent = j.puntos;
+      li.append(a, b); ol.appendChild(li);
+    });
+  }
+
+  function finalizar() {
+    fase = 'final';
+    verPantalla('final');
+    const lista = ordenados();
+    $('ganador').textContent = lista.length ? '🏆 Gana ' + lista[0].nombre + ' con ' + lista[0].puntos + ' puntos' : '';
+    mostrarTabla($('podio'), 8);
+    $('otra').focus();
+    enviar('final', { ranking: lista.map((j, i) => ({ id: j.id, puesto: i + 1, puntos: j.puntos })) });
+  }
+
+  function reiniciar() {
+    fase = 'lobby';
+    indice = -1;
+    puntajes.clear();
+    respuestas.clear();
+    verPantalla('lobby');
+    $('empezar').focus();
+    enviar('reinicio', {});
+  }
+
+  $('empezar').addEventListener('click', () => { if (jugadores.size) siguientePregunta(); });
+  $('siguiente').addEventListener('click', siguientePregunta);
+  $('otra').addEventListener('click', reiniciar);
+
   canal.subscribe(situacion => {
     if (situacion === 'SUBSCRIBED') {
-      estado.textContent = 'Sala ' + pin + ' abierta. Esperando jugadores. (v' + VERSION + ')';
+      $('estado').textContent = 'Sala ' + pin + ' abierta. Esperando jugadores. (v' + VERSION + ')';
     } else if (situacion === 'CHANNEL_ERROR' || situacion === 'TIMED_OUT') {
-      estado.textContent = 'Sin conexión con el servidor. Revisa internet y recarga la página.';
+      $('estado').textContent = 'Sin conexión con el servidor. Revisa internet y recarga la página.';
     }
   });
 </script>
