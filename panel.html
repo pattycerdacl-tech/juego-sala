@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Juego en sala · Panel de juegos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+  :root {
+    --fondo: #2433A6;
+    --fondo-2: #1C2885;
+    --boleto: #FFD23F;
+    --tinta: #1A1A2E;
+    --blanco: #FFFFFF;
+    --papel: #F2F4FF;
+    --linea: #C9D0FF;
+    --gris: #55597A;
+    --chip: #FF7A59;
+    --error: #B3261E;
+    --ok: #1E7A4C;
+    --op0: #E5484D;
+    --op1: #FFB224;
+    --op2: #30A46C;
+    --op3: #8E4EC6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+    background: var(--papel);
+    color: var(--tinta);
+    font-size: 17px;
+    line-height: 1.4;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  [hidden] { display: none !important; }
+
+  header {
+    background: var(--fondo);
+    color: var(--blanco);
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 20px 14px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 24px; font-weight: 800; }
+  #usuario { font-size: 15px; display: flex; align-items: center; gap: 10px; }
+
+  main { max-width: 820px; margin: 0 auto; padding: 24px 16px 60px; }
+  h2 { font-size: 26px; font-weight: 800; }
+
+  .tarjeta { background: var(--blanco); border: 2px solid var(--linea); border-radius: 18px; padding: 20px; }
+  label { display: block; font-weight: 700; margin: 14px 0 4px; }
+  input[type=text], input[type=email], input[type=password], textarea, select {
+    width: 100%; font: inherit; padding: 9px 12px;
+    border: 2px solid var(--linea); border-radius: 12px; background: var(--blanco); color: var(--tinta);
+  }
+  textarea { resize: vertical; min-height: 64px; }
+  input:focus, textarea:focus, select:focus { outline: 3px solid var(--fondo); outline-offset: 1px; border-color: var(--fondo); }
+
+  button { font: inherit; font-weight: 700; cursor: pointer; border-radius: 12px; padding: 9px 16px; border: 2px solid transparent; }
+  button:focus-visible { outline: 3px solid var(--chip); outline-offset: 2px; }
+  button:disabled { opacity: 0.55; cursor: default; }
+  .primario { background: var(--fondo); color: var(--blanco); }
+  .acento { background: var(--boleto); color: var(--tinta); }
+  .secundario { background: var(--blanco); color: var(--fondo); border-color: var(--fondo); }
+  .peligro { background: var(--blanco); color: var(--error); border-color: var(--error); }
+  .claro { background: transparent; color: var(--blanco); border-color: var(--blanco); padding: 4px 12px; }
+
+  .mensaje { margin-top: 12px; font-weight: 700; min-height: 1.2em; }
+  .mensaje.error { color: var(--error); }
+  .mensaje.ok { color: var(--ok); }
+
+  /* Acceso */
+  #acceso { max-width: 440px; margin: 24px auto 0; }
+  #acceso p.ayuda { color: var(--gris); margin-top: 4px; }
+  .fila-botones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+
+  /* Lista */
+  .encabezado { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  #mis-juegos { display: grid; gap: 12px; }
+  .juego { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .juego .info { flex: 1 1 260px; }
+  .juego h3 { font-size: 21px; font-weight: 800; }
+  .juego .meta { color: var(--gris); font-size: 15px; }
+  .codigo {
+    font-size: 22px; font-weight: 800; letter-spacing: 3px;
+    background: var(--boleto); border-radius: 10px; padding: 2px 12px;
+  }
+  .vacio { color: var(--gris); text-align: center; padding: 30px 10px; }
+
+  /* Editor */
+  .datos { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .datos .ancho { grid-column: 1 / -1; }
+  .check { display: flex; align-items: center; gap: 10px; margin-top: 16px; font-weight: 700; }
+  .check input { width: 22px; height: 22px; }
+  #lista-preguntas { display: grid; gap: 16px; margin-top: 16px; }
+  .pregunta-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .pregunta-cab h3 { font-size: 20px; font-weight: 800; }
+  .opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .op { display: flex; align-items: center; gap: 8px; border-radius: 12px; padding: 6px 8px 6px 10px; }
+  .op[data-i="0"] { background: var(--op0); }
+  .op[data-i="1"] { background: var(--op1); }
+  .op[data-i="2"] { background: var(--op2); }
+  .op[data-i="3"] { background: var(--op3); }
+  .op .forma { color: var(--blanco); font-size: 20px; width: 22px; text-align: center; }
+  .op[data-i="1"] .forma { color: var(--tinta); }
+  .op input[type=text] { border: none; padding: 7px 10px; }
+  .op input[type=radio] { width: 22px; height: 22px; accent-color: var(--tinta); flex: none; }
+  .nota-correcta { color: var(--gris); font-size: 14px; margin-top: 6px; }
+  .tiempo { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .tiempo label { margin: 0; }
+  .tiempo select { width: auto; }
+  .acciones-editor { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; align-items: center; }
+  .barra-guardar {
+    position: sticky; bottom: 0; background: var(--papel);
+    padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 2px solid var(--linea); margin-top: 20px;
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  }
+
+  @media (max-width: 600px) {
+    .datos { grid-template-columns: 1fr; }
+    .opciones { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Panel de juegos</h1>
+  <div id="usuario" hidden><span id="correo-usuario"></span><button class="claro" id="salir">Cerrar sesión</button></div>
+</header>
+
+<main>
+  <!-- ---------- Acceso ---------- -->
+  <section id="acceso" class="tarjeta" hidden>
+    <h2>Entra para crear juegos</h2>
+    <p class="ayuda">Usa tu correo y una contraseña de al menos 6 caracteres. Si es tu primera vez, pulsa "Crear cuenta".</p>
+    <label for="correo">Correo</label>
+    <input type="email" id="correo" autocomplete="email">
+    <label for="clave">Contraseña</label>
+    <input type="password" id="clave" autocomplete="current-password">
+    <div class="fila-botones">
+      <button class="primario" id="entrar">Entrar</button>
+      <button class="secundario" id="registrar">Crear cuenta</button>
+    </div>
+    <p class="mensaje" id="msg-acceso" role="alert"></p>
+  </section>
+
+  <!-- ---------- Mis juegos ---------- -->
+  <section id="lista" hidden>
+    <div class="encabezado">
+      <h2>Mis juegos</h2>
+      <button class="acento" id="nuevo">+ Nuevo juego</button>
+    </div>
+    <p class="mensaje" id="msg-lista" role="status"></p>
+    <div id="mis-juegos"></div>
+  </section>
+
+  <!-- ---------- Editor ---------- -->
+  <section id="editor" hidden>
+    <div class="encabezado">
+      <h2 id="titulo-editor">Nuevo juego</h2>
+      <button class="secundario" id="volver">Volver a mis juegos</button>
+    </div>
+
+    <div class="tarjeta">
+      <div class="datos">
+        <div class="ancho">
+          <label for="j-titulo">Título del juego</label>
+          <input type="text" id="j-titulo" maxlength="80" placeholder="Ej.: Animales del mundo">
+        </div>
+        <div class="ancho">
+          <label for="j-descripcion">Descripción (opcional)</label>
+          <input type="text" id="j-descripcion" maxlength="160" placeholder="Ej.: Repaso para 4.º básico">
+        </div>
+        <div>
+          <label for="j-categoria">Categoría</label>
+          <select id="j-categoria">
+            <option>General</option>
+            <option>Familia</option>
+            <option>Ciencias</option>
+            <option>Historia</option>
+            <option>Geografía</option>
+            <option>Matemáticas</option>
+            <option>Lenguaje</option>
+            <option>Inglés</option>
+            <option>Deportes</option>
+            <option>Música y cine</option>
+          </select>
+        </div>
+        <div>
+          <label class="check"><input type="checkbox" id="j-publico"> Visible para todos en la biblioteca</label>
+        </div>
+      </div>
+    </div>
+
+    <div id="lista-preguntas"></div>
+
+    <div class="acciones-editor">
+      <button class="secundario" id="agregar">+ Agregar pregunta</button>
+    </div>
+
+    <div class="barra-guardar">
+      <button class="primario" id="guardar">Guardar juego</button>
+      <span class="mensaje" id="msg-editor" role="status"></span>
+    </div>
+  </section>
+</main>
+
+<script>
+  // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
+  const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
+  const VERSION = '6';
+
+  const $ = id => document.getElementById(id);
+  const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const FORMAS = ['▲', '◆', '●', '■'];
+
+  let usuario = null;
+  let editandoId = null;    // null = juego nuevo
+  let preguntas = [];
+
+  function mensaje(id, texto, tipo) {
+    const el = $(id);
+    el.textContent = texto || '';
+    el.className = 'mensaje' + (tipo ? ' ' + tipo : '');
+  }
+
+  function verPantalla(cual) {
+    ['acceso', 'lista', 'editor'].forEach(p => $(p).hidden = p !== cual);
+    window.scrollTo(0, 0);
+  }
+
+  // ---------- 1. Sesión ----------
+  async function alCambiarSesion(sesion) {
+    usuario = sesion ? sesion.user : null;
+    $('usuario').hidden = !usuario;
+    if (usuario) {
+      $('correo-usuario').textContent = usuario.email;
+      verPantalla('lista');
+      cargarJuegos();
+    } else {
+      verPantalla('acceso');
+    }
+  }
+
+  cliente.auth.onAuthStateChange((_evento, sesion) => alCambiarSesion(sesion));
+  cliente.auth.getSession().then(({ data }) => alCambiarSesion(data.session));
+
+  $('entrar').addEventListener('click', async () => {
+    const email = $('correo').value.trim(), password = $('clave').value;
+    if (!email || password.length < 6) return mensaje('msg-acceso', 'Escribe tu correo y una contraseña de al menos 6 caracteres.', 'error');
+    $('entrar').disabled = true;
+    const { error } = await cliente.auth.signInWithPassword({ email, password });
+    $('entrar').disabled = false;
+    if (error) {
+      const txt = /confirm/i.test(error.message)
+        ? 'Tu correo aún no está confirmado. Revisa tu bandeja de entrada (y spam) y pulsa el enlace.'
+        : 'No se pudo entrar: revisa el correo y la contraseña.';
+      mensaje('msg-acceso', txt, 'error');
+    }
+  });
+
+  $('registrar').addEventListener('click', async () => {
+    const email = $('correo').value.trim(), password = $('clave').value;
+    if (!email || password.length < 6) return mensaje('msg-acceso', 'Escribe tu correo y una contraseña de al menos 6 caracteres.', 'error');
+    $('registrar').disabled = true;
+    const { data, error } = await cliente.auth.signUp({
+      email, password,
+      options: { emailRedirectTo: location.origin + location.pathname }
+    });
+    $('registrar').disabled = false;
+    if (error) return mensaje('msg-acceso', 'No se pudo crear la cuenta: ' + error.message, 'error');
+    if (!data.session) mensaje('msg-acceso', 'Cuenta creada. Te enviamos un correo: pulsa el enlace para confirmarla y luego vuelve a entrar aquí.', 'ok');
+  });
+
+  $('salir').addEventListener('click', () => cliente.auth.signOut());
+  $('clave').addEventListener('keydown', e => { if (e.key === 'Enter') $('entrar').click(); });
+
+  // ---------- 2. Mis juegos ----------
+  async function cargarJuegos() {
+    mensaje('msg-lista', 'Cargando…');
+    const { data, error } = await cliente
+      .from('juegos')
+      .select('id, titulo, descripcion, codigo, categoria, publico, preguntas, creado_en')
+      .eq('autor', usuario.id)
+      .order('creado_en', { ascending: false });
+    if (error) return mensaje('msg-lista', 'No se pudieron cargar tus juegos: ' + error.message, 'error');
+    mensaje('msg-lista', '');
+
+    const cont = $('mis-juegos');
+    cont.innerHTML = '';
+    if (!data.length) {
+      const p = document.createElement('p');
+      p.className = 'vacio tarjeta';
+      p.textContent = 'Aún no tienes juegos. Pulsa "+ Nuevo juego" para crear el primero.';
+      cont.appendChild(p);
+      return;
+    }
+
+    data.forEach(j => {
+      const tarjeta = document.createElement('div');
+      tarjeta.className = 'tarjeta juego';
+
+      const info = document.createElement('div');
+      info.className = 'info';
+      const h3 = document.createElement('h3'); h3.textContent = j.titulo;
+      const meta = document.createElement('p'); meta.className = 'meta';
+      const n = (j.preguntas || []).length;
+      meta.textContent = n + (n === 1 ? ' pregunta' : ' preguntas') + ' · ' + (j.categoria || 'General') + ' · ' + (j.publico ? 'Público' : 'Privado');
+      info.append(h3, meta);
+
+      const codigo = document.createElement('span');
+      codigo.className = 'codigo';
+      codigo.title = 'Código para cargar este juego en la TV';
+      codigo.textContent = j.codigo;
+
+      const editar = document.createElement('button');
+      editar.className = 'secundario'; editar.textContent = 'Editar';
+      editar.addEventListener('click', () => abrirEditor(j));
+
+      const borrar = document.createElement('button');
+      borrar.className = 'peligro'; borrar.textContent = 'Borrar';
+      borrar.addEventListener('click', async () => {
+        if (!confirm('¿Borrar "' + j.titulo + '"? Esto no se puede deshacer.')) return;
+        const { error } = await cliente.from('juegos').delete().eq('id', j.id);
+        if (error) return mensaje('msg-lista', 'No se pudo borrar: ' + error.message, 'error');
+        mensaje('msg-lista', 'Juego borrado.', 'ok');
+        cargarJuegos();
+      });
+
+      tarjeta.append(info, codigo, editar, borrar);
+      cont.appendChild(tarjeta);
+    });
+  }
+
+  // ---------- 3. Editor ----------
+  const preguntaVacia = () => ({ texto: '', opciones: ['', '', '', ''], correcta: 0, tiempo: 20 });
+
+  function abrirEditor(juego) {
+    editandoId = juego ? juego.id : null;
+    $('titulo-editor').textContent = juego ? 'Editar juego · código ' + juego.codigo : 'Nuevo juego';
+    $('j-titulo').value = juego ? juego.titulo : '';
+    $('j-descripcion').value = juego ? (juego.descripcion || '') : '';
+    $('j-categoria').value = juego ? (juego.categoria || 'General') : 'General';
+    $('j-publico').checked = juego ? !!juego.publico : false;
+    preguntas = juego && juego.preguntas && juego.preguntas.length
+      ? JSON.parse(JSON.stringify(juego.preguntas))
+      : [preguntaVacia()];
+    mensaje('msg-editor', '');
+    dibujarPreguntas();
+    verPantalla('editor');
+    $('j-titulo').focus();
+  }
+
+  function dibujarPreguntas() {
+    const cont = $('lista-preguntas');
+    cont.innerHTML = '';
+    preguntas.forEach((p, n) => {
+      const t = document.createElement('div');
+      t.className = 'tarjeta';
+
+      const cab = document.createElement('div');
+      cab.className = 'pregunta-cab';
+      const h3 = document.createElement('h3'); h3.textContent = 'Pregunta ' + (n + 1);
+      const quitar = document.createElement('button');
+      quitar.className = 'peligro'; quitar.textContent = 'Quitar';
+      quitar.disabled = preguntas.length === 1;
+      quitar.addEventListener('click', () => { preguntas.splice(n, 1); dibujarPreguntas(); });
+      cab.append(h3, quitar);
+
+      const lab = document.createElement('label');
+      lab.textContent = 'Texto de la pregunta';
+      lab.htmlFor = 'p' + n + '-texto';
+      const area = document.createElement('textarea');
+      area.id = 'p' + n + '-texto'; area.maxLength = 160; area.value = p.texto;
+      area.placeholder = 'Ej.: ¿Cuál es el animal terrestre más rápido?';
+      area.addEventListener('input', () => { p.texto = area.value; });
+
+      const ops = document.createElement('div');
+      ops.className = 'opciones';
+      p.opciones.forEach((valor, i) => {
+        const fila = document.createElement('div');
+        fila.className = 'op'; fila.dataset.i = i;
+        const forma = document.createElement('span'); forma.className = 'forma'; forma.textContent = FORMAS[i];
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.maxLength = 60; inp.value = valor;
+        inp.placeholder = 'Opción ' + (i + 1);
+        inp.setAttribute('aria-label', 'Opción ' + (i + 1) + ' de la pregunta ' + (n + 1));
+        inp.addEventListener('input', () => { p.opciones[i] = inp.value; });
+        const radio = document.createElement('input');
+        radio.type = 'radio'; radio.name = 'correcta-' + n; radio.checked = p.correcta === i;
+        radio.title = 'Marcar como respuesta correcta';
+        radio.setAttribute('aria-label', 'Opción ' + (i + 1) + ' es la correcta');
+        radio.addEventListener('change', () => { p.correcta = i; });
+        fila.append(forma, inp, radio);
+        ops.appendChild(fila);
+      });
+      const nota = document.createElement('p');
+      nota.className = 'nota-correcta';
+      nota.textContent = 'Marca el círculo de la respuesta correcta.';
+
+      const tiempo = document.createElement('div');
+      tiempo.className = 'tiempo';
+      const lt = document.createElement('label'); lt.textContent = 'Tiempo para responder'; lt.htmlFor = 'p' + n + '-tiempo';
+      const sel = document.createElement('select'); sel.id = 'p' + n + '-tiempo';
+      [10, 20, 30, 45, 60].forEach(s => {
+        const o = document.createElement('option'); o.value = s; o.textContent = s + ' segundos';
+        if (s === Number(p.tiempo || 20)) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.addEventListener('change', () => { p.tiempo = Number(sel.value); });
+      tiempo.append(lt, sel);
+
+      t.append(cab, lab, area, ops, nota, tiempo);
+      cont.appendChild(t);
+    });
+  }
+
+  $('nuevo').addEventListener('click', () => abrirEditor(null));
+  $('volver').addEventListener('click', () => { verPantalla('lista'); cargarJuegos(); });
+  $('agregar').addEventListener('click', () => {
+    preguntas.push(preguntaVacia());
+    dibujarPreguntas();
+    const ultima = $('p' + (preguntas.length - 1) + '-texto');
+    if (ultima) { ultima.scrollIntoView({ behavior: 'smooth', block: 'center' }); ultima.focus(); }
+  });
+
+  $('guardar').addEventListener('click', async () => {
+    const titulo = $('j-titulo').value.trim();
+    if (!titulo) return mensaje('msg-editor', 'Escribe un título para el juego.', 'error');
+
+    for (let n = 0; n < preguntas.length; n++) {
+      const p = preguntas[n];
+      p.texto = p.texto.trim();
+      p.opciones = p.opciones.map(o => o.trim());
+      if (!p.texto) return mensaje('msg-editor', 'Falta el texto de la pregunta ' + (n + 1) + '.', 'error');
+      if (p.opciones.some(o => !o)) return mensaje('msg-editor', 'Completa las 4 opciones de la pregunta ' + (n + 1) + '.', 'error');
+    }
+
+    const datos = {
+      titulo,
+      descripcion: $('j-descripcion').value.trim() || null,
+      categoria: $('j-categoria').value,
+      publico: $('j-publico').checked,
+      preguntas
+    };
+
+    $('guardar').disabled = true;
+    mensaje('msg-editor', 'Guardando…');
+    const consulta = editandoId
+      ? cliente.from('juegos').update(datos).eq('id', editandoId).select('id, codigo').single()
+      : cliente.from('juegos').insert(datos).select('id, codigo').single();
+    const { data, error } = await consulta;
+    $('guardar').disabled = false;
+
+    if (error) return mensaje('msg-editor', 'No se pudo guardar: ' + error.message, 'error');
+    editandoId = data.id;
+    $('titulo-editor').textContent = 'Editar juego · código ' + data.codigo;
+    mensaje('msg-editor', 'Guardado. Código para la TV: ' + data.codigo, 'ok');
+  });
+</script>
+</body>
+</html>
