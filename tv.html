@@ -123,6 +123,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
+  const VERSION = '4';
 
   // 1. Crear un PIN de sala de 6 dígitos
   const pin = String(Math.floor(100000 + Math.random() * 900000));
@@ -130,7 +131,7 @@
 
   // 2. Armar el enlace para los teléfonos y dibujar el QR
   const carpeta = location.origin + location.pathname.replace(/[^/]*$/, '');
-  const enlaceJugador = carpeta + 'jugar.html?sala=' + pin;
+  const enlaceJugador = carpeta + 'jugar.html?sala=' + pin + '&v=' + VERSION;
   new QRCode(document.getElementById('qr'), {
     text: enlaceJugador,
     width: 512,
@@ -145,16 +146,17 @@
   const vacio = document.getElementById('vacio');
 
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  const canal = cliente.channel('sala-' + pin, {
-    config: { presence: { key: 'tv', enabled: true } }
-  });
+  const canal = cliente.channel('sala-' + pin);
+
+  // Jugadores conocidos: id -> { nombre, visto }
+  const jugadores = new Map();
+  let ultimaLista = '';
 
   function mostrarJugadores() {
-    const presentes = canal.presenceState();
-    const nombres = [];
-    for (const clave in presentes) {
-      presentes[clave].forEach(p => { if (p.nombre) nombres.push(p.nombre); });
-    }
+    const nombres = [...jugadores.values()].map(j => j.nombre);
+    const firma = nombres.join('|');
+    if (firma === ultimaLista) return; // nada cambió: no redibujar
+    ultimaLista = firma;
     lista.innerHTML = '';
     nombres.forEach(nombre => {
       const li = document.createElement('li');
@@ -165,11 +167,30 @@
     vacio.style.display = nombres.length ? 'none' : 'block';
   }
 
-  canal.on('presence', { event: 'sync' }, mostrarJugadores);
+  // Un teléfono avisa "hola" al entrar y cada 4 segundos mientras siga ahí
+  canal.on('broadcast', { event: 'hola' }, ({ payload }) => {
+    if (!payload || !payload.id || !payload.nombre) return;
+    jugadores.set(payload.id, { nombre: String(payload.nombre).slice(0, 16), visto: Date.now() });
+    mostrarJugadores();
+  });
+
+  // Un teléfono avisa "adios" al cerrar la página
+  canal.on('broadcast', { event: 'adios' }, ({ payload }) => {
+    if (payload && jugadores.delete(payload.id)) mostrarJugadores();
+  });
+
+  // Si un teléfono deja de avisar por 15 segundos, se quita de la lista
+  setInterval(() => {
+    const ahora = Date.now();
+    for (const [id, j] of jugadores) {
+      if (ahora - j.visto > 15000) jugadores.delete(id);
+    }
+    mostrarJugadores();
+  }, 3000);
 
   canal.subscribe(situacion => {
     if (situacion === 'SUBSCRIBED') {
-      estado.textContent = 'Sala ' + pin + ' abierta. Esperando jugadores.';
+      estado.textContent = 'Sala ' + pin + ' abierta. Esperando jugadores. (v' + VERSION + ')';
     } else if (situacion === 'CHANNEL_ERROR' || situacion === 'TIMED_OUT') {
       estado.textContent = 'Sin conexión con el servidor. Revisa internet y recarga la página.';
     }
