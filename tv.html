@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Juego en sala · TV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --fondo: #2433A6;
+    --fondo-2: #1C2885;
+    --boleto: #FFD23F;
+    --tinta: #1A1A2E;
+    --blanco: #FFFFFF;
+    --suave: #C9D0FF;
+    --chip: #FF7A59;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+    background: var(--fondo);
+    color: var(--blanco);
+    overflow: hidden;
+  }
+  main {
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: 4vw;
+    padding: 5vh 5vw;
+    align-items: center;
+  }
+  .boleto {
+    background: var(--boleto);
+    color: var(--tinta);
+    border-radius: 2.4vw;
+    padding: 4vh 3vw;
+    text-align: center;
+    box-shadow: 0 1.2vw 0 var(--fondo-2);
+  }
+  .boleto h1 { font-size: 3.4vw; font-weight: 800; line-height: 1.05; }
+  .boleto p { font-size: 1.5vw; font-weight: 500; margin-top: 1vh; }
+  #qr {
+    background: var(--blanco);
+    border-radius: 1.4vw;
+    padding: 1.4vw;
+    margin: 3vh auto;
+    width: max-content;
+  }
+  #qr img, #qr canvas { width: 30vh !important; height: 30vh !important; display: block; }
+  .pin-texto { font-size: 1.4vw; font-weight: 500; }
+  #pin {
+    font-size: 6vw;
+    font-weight: 800;
+    letter-spacing: 0.6vw;
+    line-height: 1;
+    margin-top: 0.5vh;
+  }
+  .sala h2 { font-size: 3vw; font-weight: 800; }
+  .sala h2 span {
+    display: inline-block;
+    min-width: 4.5vw;
+    text-align: center;
+    background: var(--blanco);
+    color: var(--fondo);
+    border-radius: 3vw;
+    padding: 0 1.2vw;
+    margin-left: 0.8vw;
+  }
+  #estado { font-size: 1.5vw; color: var(--suave); margin-top: 1vh; }
+  #jugadores {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2vw;
+    margin-top: 4vh;
+    max-height: 60vh;
+    overflow: hidden;
+  }
+  #jugadores li {
+    background: var(--chip);
+    color: var(--tinta);
+    font-size: 2vw;
+    font-weight: 700;
+    padding: 0.6vh 1.6vw;
+    border-radius: 3vw;
+    animation: entra 0.35s ease-out;
+  }
+  #vacio { font-size: 1.8vw; color: var(--suave); margin-top: 4vh; }
+  @keyframes entra {
+    from { transform: scale(0.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #jugadores li { animation: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="boleto">
+    <h1>¡A jugar!</h1>
+    <p>Escanea el código con tu teléfono</p>
+    <div id="qr"></div>
+    <div class="pin-texto">o entra con el PIN de la sala</div>
+    <div id="pin">------</div>
+  </section>
+
+  <section class="sala">
+    <h2>Jugadores <span id="cuenta">0</span></h2>
+    <p id="estado">Conectando con el servidor…</p>
+    <p id="vacio">Todavía no hay nadie. El primero en escanear el código aparecerá aquí.</p>
+    <ul id="jugadores"></ul>
+  </section>
+</main>
+
+<script>
+  // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
+  const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
+
+  // 1. Crear un PIN de sala de 6 dígitos
+  const pin = String(Math.floor(100000 + Math.random() * 900000));
+  document.getElementById('pin').textContent = pin;
+
+  // 2. Armar el enlace para los teléfonos y dibujar el QR
+  const carpeta = location.origin + location.pathname.replace(/[^/]*$/, '');
+  const enlaceJugador = carpeta + 'jugar.html?sala=' + pin;
+  new QRCode(document.getElementById('qr'), {
+    text: enlaceJugador,
+    width: 512,
+    height: 512,
+    correctLevel: QRCode.CorrectLevel.M
+  });
+
+  // 3. Conectarse a la sala en tiempo real
+  const estado = document.getElementById('estado');
+  const lista = document.getElementById('jugadores');
+  const cuenta = document.getElementById('cuenta');
+  const vacio = document.getElementById('vacio');
+
+  const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const canal = cliente.channel('sala-' + pin);
+
+  function mostrarJugadores() {
+    const presentes = canal.presenceState();
+    const nombres = [];
+    for (const clave in presentes) {
+      presentes[clave].forEach(p => { if (p.nombre) nombres.push(p.nombre); });
+    }
+    lista.innerHTML = '';
+    nombres.forEach(nombre => {
+      const li = document.createElement('li');
+      li.textContent = nombre;
+      lista.appendChild(li);
+    });
+    cuenta.textContent = nombres.length;
+    vacio.style.display = nombres.length ? 'none' : 'block';
+  }
+
+  canal.on('presence', { event: 'sync' }, mostrarJugadores);
+
+  canal.subscribe(situacion => {
+    if (situacion === 'SUBSCRIBED') {
+      estado.textContent = 'Sala abierta. Esperando jugadores.';
+    } else if (situacion === 'CHANNEL_ERROR' || situacion === 'TIMED_OUT') {
+      estado.textContent = 'Sin conexión con el servidor. Revisa internet y recarga la página.';
+    }
+  });
+</script>
+</body>
+</html>
