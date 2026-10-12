@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Juego en sala · Jugador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+  :root {
+    --fondo: #2433A6;
+    --fondo-2: #1C2885;
+    --boleto: #FFD23F;
+    --tinta: #1A1A2E;
+    --blanco: #FFFFFF;
+    --suave: #C9D0FF;
+    --chip: #FF7A59;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    font-family: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+    background: var(--fondo);
+    color: var(--blanco);
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    justify-content: center;
+  }
+  main { width: 100%; max-width: 420px; }
+  .tarjeta {
+    background: var(--boleto);
+    color: var(--tinta);
+    border-radius: 24px;
+    padding: 28px 22px;
+    box-shadow: 0 10px 0 var(--fondo-2);
+  }
+  h1 { font-size: 34px; font-weight: 800; line-height: 1.1; }
+  .ayuda { font-size: 18px; margin-top: 6px; }
+  label { display: block; font-size: 18px; font-weight: 700; margin-top: 22px; }
+  input {
+    width: 100%;
+    font: inherit;
+    font-size: 26px;
+    font-weight: 700;
+    padding: 10px 14px;
+    margin-top: 6px;
+    border: 3px solid var(--tinta);
+    border-radius: 14px;
+    background: var(--blanco);
+    color: var(--tinta);
+  }
+  input:focus { outline: 4px solid var(--chip); outline-offset: 2px; }
+  #campo-pin input { letter-spacing: 6px; text-align: center; }
+  button {
+    width: 100%;
+    font: inherit;
+    font-size: 24px;
+    font-weight: 800;
+    margin-top: 24px;
+    padding: 12px;
+    border: none;
+    border-radius: 16px;
+    background: var(--fondo);
+    color: var(--blanco);
+    cursor: pointer;
+  }
+  button:focus-visible { outline: 4px solid var(--chip); outline-offset: 3px; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  #error { color: #B3261E; font-weight: 700; font-size: 17px; margin-top: 12px; min-height: 1em; }
+  #dentro { display: none; text-align: center; }
+  #dentro .nombre {
+    display: inline-block;
+    background: var(--chip);
+    color: var(--tinta);
+    font-size: 30px;
+    font-weight: 800;
+    padding: 4px 22px;
+    border-radius: 40px;
+    margin: 18px 0 10px;
+  }
+  #dentro p { font-size: 20px; }
+  #dentro .sala { font-size: 16px; color: #4A4A68; margin-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <section class="tarjeta" id="entrada">
+    <h1>Únete al juego</h1>
+    <p class="ayuda">Escribe tu apodo para aparecer en la TV.</p>
+
+    <div id="campo-pin">
+      <label for="pin">PIN de la sala</label>
+      <input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000">
+    </div>
+
+    <label for="nombre">Tu apodo</label>
+    <input id="nombre" maxlength="16" autocomplete="off" placeholder="Ej.: Tía Rosa">
+
+    <button id="entrar">Entrar a la sala</button>
+    <p id="error" role="alert"></p>
+  </section>
+
+  <section class="tarjeta" id="dentro">
+    <h1>¡Ya estás dentro!</h1>
+    <div class="nombre" id="mi-nombre"></div>
+    <p>Mira la TV: tu nombre ya aparece ahí. Espera a que empiece el juego.</p>
+    <p class="sala" id="mi-sala"></p>
+  </section>
+</main>
+
+<script>
+  // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
+  const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
+
+  const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const campoPin = document.getElementById('campo-pin');
+  const inputPin = document.getElementById('pin');
+  const inputNombre = document.getElementById('nombre');
+  const boton = document.getElementById('entrar');
+  const error = document.getElementById('error');
+
+  // 1. Si llegó por QR, el PIN viene en el enlace y no hace falta escribirlo
+  const pinDelEnlace = new URLSearchParams(location.search).get('sala');
+  if (pinDelEnlace && /^\d{6}$/.test(pinDelEnlace)) {
+    inputPin.value = pinDelEnlace;
+    campoPin.style.display = 'none';
+  }
+
+  // 2. Un identificador único para este teléfono
+  const miId = 'j-' + Math.random().toString(36).slice(2, 10);
+
+  // 3. Entrar a la sala y avisar a la TV
+  boton.addEventListener('click', () => {
+    const pin = inputPin.value.trim();
+    const nombre = inputNombre.value.trim();
+    error.textContent = '';
+
+    if (!/^\d{6}$/.test(pin)) { error.textContent = 'El PIN debe tener 6 números.'; return; }
+    if (!nombre) { error.textContent = 'Escribe un apodo para entrar.'; return; }
+
+    boton.disabled = true;
+    boton.textContent = 'Entrando…';
+
+    const canal = cliente.channel('sala-' + pin, { config: { presence: { key: miId } } });
+
+    canal.subscribe(async situacion => {
+      if (situacion === 'SUBSCRIBED') {
+        await canal.track({ nombre: nombre });
+        document.getElementById('entrada').style.display = 'none';
+        document.getElementById('dentro').style.display = 'block';
+        document.getElementById('mi-nombre').textContent = nombre;
+        document.getElementById('mi-sala').textContent = 'Sala ' + pin;
+      } else if (situacion === 'CHANNEL_ERROR' || situacion === 'TIMED_OUT') {
+        boton.disabled = false;
+        boton.textContent = 'Entrar a la sala';
+        error.textContent = 'Sin conexión con el servidor. Revisa internet e inténtalo de nuevo.';
+      }
+    });
+  });
+
+  inputNombre.addEventListener('keydown', e => { if (e.key === 'Enter') boton.click(); });
+</script>
+</body>
+</html>
