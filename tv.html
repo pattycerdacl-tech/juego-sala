@@ -289,14 +289,14 @@
   <p id="ganador"></p>
   <ol class="tabla" id="podio"></ol>
   <p id="mejor"></p>
-  <div><button class="boton" id="otra">Jugar otra vez</button></div>
+  <div><button class="boton" id="otra">Jugar otra vez</button> <button class="boton" id="diploma" hidden>📜 Diploma del ganador</button></div>
 </main>
 
 <script>
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '14';
+  const VERSION = '15';
 
   // Preguntas de respaldo (se usan si no se puede cargar ningún juego)
   let ronda = [];              // preguntas de la partida en curso (ya mezcladas si corresponde)
@@ -318,10 +318,18 @@
   const Sonido = (() => {
     let ctx = null, master = null, activo = false, deseada = 'lobby';
     let temporizador = null, paso = 0, proximo = 0, patron = null;
+    let opciones = { estilo: 'tranquila', volumen: 60, tictac: true, efectos: true };
     const hz = m => 440 * Math.pow(2, (m - 69) / 12);
     const PATRONES = {
-      lobby:    { bpm: 104, acordes: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]], bajo: [48, 45, 41, 43], vol: 0.06 },
-      pregunta: { bpm: 132, acordes: [[57, 60, 64], [53, 57, 60], [55, 59, 62], [52, 56, 59]], bajo: [45, 41, 43, 40], vol: 0.05 }
+      'tranquila-lobby':    { bpm: 104, acordes: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]], bajo: [48, 45, 41, 43], vol: 0.06 },
+      'tranquila-pregunta': { bpm: 132, acordes: [[57, 60, 64], [53, 57, 60], [55, 59, 62], [52, 56, 59]], bajo: [45, 41, 43, 40], vol: 0.05 },
+      'fiesta-lobby':       { bpm: 120, acordes: [[60, 64, 67], [65, 69, 72], [67, 71, 74], [69, 72, 76]], bajo: [48, 53, 55, 57], vol: 0.06,
+                              arp: [0, 2, 1, 2, 0, 2, 1, 2], bajoPasos: [0, 2, 4, 6], tipo: 'square' },
+      'fiesta-pregunta':    { bpm: 144, acordes: [[60, 64, 67], [65, 69, 72], [67, 71, 74], [69, 72, 76]], bajo: [48, 53, 55, 57], vol: 0.05,
+                              arp: [0, 2, 1, 2, 0, 2, 1, 2], bajoPasos: [0, 2, 4, 6], tipo: 'square' },
+      'suspenso-lobby':     { bpm: 80, acordes: [[57, 60, 64], [62, 65, 69], [64, 68, 71], [57, 60, 64]], bajo: [45, 50, 52, 45], vol: 0.06, tipo: 'sine' },
+      'suspenso-pregunta':  { bpm: 112, acordes: [[57, 60, 64], [58, 62, 65], [57, 60, 64], [56, 59, 64]], bajo: [45, 46, 45, 44], vol: 0.05,
+                              arp: [0, 0, 2, 0, 1, 0, 2, 0], tipo: 'sine' }
     };
 
     function nota(freq, t, dur, tipo, vol) {
@@ -335,20 +343,24 @@
     }
 
     function programar() {
+      const arp = patron.arp || [0, 1, 2, 1, 0, 1, 2, 1];
+      const pasosBajo = patron.bajoPasos || [0, 4];
       while (proximo < ctx.currentTime + 0.2) {
         const dur = 60 / patron.bpm / 2;
         const compas = Math.floor(paso / 8) % 4, s = paso % 8;
         const acorde = patron.acordes[compas];
-        nota(hz(acorde[[0, 1, 2, 1, 0, 1, 2, 1][s]] + 12), proximo, dur * 0.9, 'triangle', patron.vol);
-        if (s === 0 || s === 4) nota(hz(patron.bajo[compas]), proximo, dur * 1.8, 'sine', patron.vol * 2.4);
+        nota(hz(acorde[arp[s]] + 12), proximo, dur * 0.9, patron.tipo || 'triangle', patron.vol);
+        if (pasosBajo.includes(s)) nota(hz(patron.bajo[compas]), proximo, dur * 1.8, 'sine', patron.vol * 2.4);
         paso++; proximo += dur;
       }
     }
 
     function arrancar() {
       clearInterval(temporizador); temporizador = null;
-      if (!activo || !deseada) return;
-      patron = PATRONES[deseada]; paso = 0; proximo = ctx.currentTime + 0.05;
+      if (!activo || !deseada || opciones.estilo === 'ninguna') return;
+      patron = PATRONES[opciones.estilo + '-' + deseada] || PATRONES['tranquila-' + deseada];
+      if (!patron) return;
+      paso = 0; proximo = ctx.currentTime + 0.05;
       temporizador = setInterval(programar, 50);
     }
 
@@ -360,20 +372,30 @@
                 [60, 0.34, 0.9, 'triangle', 0.15], [64, 0.34, 0.9, 'triangle', 0.15], [76, 0.34, 0.9, 'triangle', 0.1]]
     };
 
+    const ganancia = () => 0.9 * Math.max(0, Math.min(100, opciones.volumen)) / 100;
+
     return {
       get activo() { return activo; },
       activar() {
         if (!ctx) {
           ctx = new (window.AudioContext || window.webkitAudioContext)();
-          master = ctx.createGain(); master.gain.value = 0.6; master.connect(ctx.destination);
+          master = ctx.createGain(); master.connect(ctx.destination);
         }
+        master.gain.value = ganancia();
         if (ctx.state === 'suspended') ctx.resume();
         activo = true; arrancar();
       },
       desactivar() { activo = false; arrancar(); },
+      configurar(o) {
+        opciones = { ...opciones, ...o };
+        if (master) master.gain.value = ganancia();
+        arrancar();
+      },
       musica(nombre) { deseada = nombre; arrancar(); },
       efecto(nombre) {
         if (!activo || !ctx) return;
+        if (nombre === 'tic' && !opciones.tictac) return;
+        if (nombre !== 'tic' && !opciones.efectos) return;
         const t = ctx.currentTime + 0.02;
         EFECTOS[nombre].forEach(([m, d, dur, tipo, vol]) => nota(hz(m), t + d, dur, tipo, vol));
       }
@@ -750,6 +772,13 @@
       mostrarTabla($('podio'), 8);
       $('mejor').textContent = '';
     }
+    const hayGanador = temaActual.diploma && temaActual.diploma.activo && rankingVisible('final') && lista.length > 0;
+    $('diploma').hidden = !hayGanador;
+    diplomaGanador = !hayGanador ? null : (modo === 'equipos' && equipos)
+      ? { nombre: 'Equipo ' + equipos[0].nombre, linea1: '🏆 1.er lugar con ' + miles(equipos[0].puntos) + ' puntos',
+          linea2: 'Mejor jugador: ' + lista[0].avatar + ' ' + lista[0].nombre }
+      : { nombre: lista[0].avatar + ' ' + lista[0].nombre, linea1: '🏆 1.er lugar con ' + miles(lista[0].puntos) + ' puntos',
+          linea2: 'Acertó ' + (aciertos.get(lista[0].id) || 0) + ' de ' + ronda.length + ' preguntas' };
     $('otra').focus();
     enviar('final', { ranking: lista.map((j, i) => ({ id: j.id, puesto: i + 1, puntos: j.puntos })), equipos: rankingVisible('final') ? equipos : null, mostrarPuesto: rankingVisible('final'), aciertos: aciertosObj, total: ronda.length });
   }
@@ -783,7 +812,7 @@
   const urlSegura = u => typeof u === 'string' && /^https:\/\/[^"'()\s]+$/.test(u);
   let temaActual = {};
 
-  function aplicarTema(c) {
+  function aplicarTema(c, titulo) {
     c = c || {};
     const t = TEMAS[c.tema] || TEMAS.azul;
     const raiz = document.documentElement.style;
@@ -804,7 +833,12 @@
       fondo: urlSegura(c.fondo) ? c.fondo : null,
       logo: urlSegura(c.logo) ? c.logo : null,
       bienvenida: String(c.bienvenida || '').trim().slice(0, 60),
-      mensajeFinal: String(c.mensajeFinal || '').trim().slice(0, 120)
+      mensajeFinal: String(c.mensajeFinal || '').trim().slice(0, 120),
+      juego: String(titulo || c.juego || '').slice(0, 80),
+      diploma: {
+        activo: !(c.diploma && c.diploma.activo === false),
+        texto: String((c.diploma && c.diploma.texto) || '').trim().slice(0, 100)
+      }
     };
     $('bienvenida').textContent = temaActual.bienvenida || '¡A jugar!';
     $('mensaje-final').textContent = temaActual.mensajeFinal;
@@ -819,6 +853,81 @@
       (p.opciones.length === 4 || p.opciones.length === 2) &&
       Number.isInteger(p.correcta) && p.correcta >= 0 && p.correcta < p.opciones.length);
   }
+
+
+  // ---------- Diploma descargable (se dibuja en el navegador) ----------
+  function envolverTexto(c, texto, x, y, ancho, alto) {
+    const palabras = String(texto).split(' ');
+    let linea = '';
+    for (const p of palabras) {
+      const prueba = linea ? linea + ' ' + p : p;
+      if (c.measureText(prueba).width > ancho && linea) { c.fillText(linea, x, y); linea = p; y += alto; }
+      else linea = prueba;
+    }
+    if (linea) c.fillText(linea, x, y);
+  }
+
+  function cargarImagenCors(url) {
+    return new Promise(resolver => {
+      if (!url) return resolver(null);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolver(img);
+      img.onerror = () => resolver(null);
+      img.src = url;
+    });
+  }
+
+  async function descargarDiploma(d) {
+    const W = 1600, H = 1131;
+    const lienzo = document.createElement('canvas');
+    lienzo.width = W; lienzo.height = H;
+    const c = lienzo.getContext('2d');
+    const css = getComputedStyle(document.documentElement);
+    const fondo = css.getPropertyValue('--fondo').trim() || '#2433A6';
+    const acento = css.getPropertyValue('--boleto').trim() || '#FFD23F';
+    const fuente = '"Baloo 2", "Trebuchet MS", sans-serif';
+    try { await document.fonts.load('800 80px "Baloo 2"'); } catch (e) {}
+
+    c.fillStyle = '#FFFDF5'; c.fillRect(0, 0, W, H);
+    c.strokeStyle = fondo; c.lineWidth = 36; c.strokeRect(18, 18, W - 36, H - 36);
+    c.strokeStyle = acento; c.lineWidth = 10; c.strokeRect(58, 58, W - 116, H - 116);
+    c.textAlign = 'center';
+
+    let y = 290;
+    const logo = await cargarImagenCors(d.logo);
+    if (logo) {
+      const alto = 140, ancho = Math.min(500, logo.width * alto / logo.height);
+      c.drawImage(logo, W / 2 - ancho / 2, 110, ancho, alto);
+      y = 360;
+    }
+    c.fillStyle = fondo; c.font = '800 110px ' + fuente; c.fillText('DIPLOMA', W / 2, y);
+    c.fillStyle = '#55597A'; c.font = '500 40px ' + fuente; c.fillText('Se otorga a', W / 2, y + 80);
+    c.fillStyle = '#1A1A2E'; c.font = '800 96px ' + fuente; c.fillText(d.nombre, W / 2, y + 200);
+    c.fillStyle = fondo; c.font = '700 52px ' + fuente; c.fillText(d.linea1 || '', W / 2, y + 290);
+    c.fillStyle = '#1A1A2E'; c.font = '500 40px ' + fuente; c.fillText(d.linea2 || '', W / 2, y + 355);
+    if (d.texto) { c.fillStyle = '#55597A'; c.font = 'italic 500 36px ' + fuente; envolverTexto(c, d.texto, W / 2, y + 430, W - 400, 46); }
+    c.fillStyle = '#55597A'; c.font = '500 32px ' + fuente;
+    const fecha = new Date().toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' });
+    c.fillText((d.juego ? d.juego + '  ·  ' : '') + fecha, W / 2, H - 120);
+
+    lienzo.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'diploma-' + String(d.nombre).replace(/[^\wáéíóúñ-]+/gi, '-').toLowerCase() + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }, 'image/png');
+  }
+
+  const lugarTexto = n => n === 1 ? '1.er lugar' : n + '.º lugar';
+  const miles = n => Number(n || 0).toLocaleString('es');
+
+  let diplomaGanador = null;
+  $('diploma').addEventListener('click', () => {
+    if (diplomaGanador) descargarDiploma({ ...diplomaGanador, texto: temaActual.diploma.texto, juego: temaActual.juego, logo: temaActual.logo });
+  });
 
   // ---------- Reglas del juego ----------
   const mezclar_ = arr => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); [a[i], a[k]] = [a[k], a[i]]; } return a; };
@@ -909,7 +1018,14 @@
   }
 
   function aplicarJuego(j) {
-    aplicarTema(j.config);
+    aplicarTema(j.config, j.titulo);
+    const so = (j.config && j.config.sonido) || {};
+    Sonido.configurar({
+      estilo: ['tranquila', 'fiesta', 'suspenso', 'ninguna'].includes(so.estilo) ? so.estilo : 'tranquila',
+      volumen: Number.isFinite(Number(so.volumen)) ? Number(so.volumen) : 60,
+      tictac: so.tictac !== false,
+      efectos: so.efectos !== false
+    });
     aplicarReglas(j.config);
     PREGUNTAS = j.preguntas;
     // Precargar las imágenes para que aparezcan al instante
