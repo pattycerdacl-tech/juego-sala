@@ -111,6 +111,14 @@
   .tiempo { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
   .tiempo label { margin: 0; }
   .tiempo select { width: auto; }
+  .fila { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .fila label { margin: 0; }
+  .fila select { width: auto; }
+  .op .fijo { flex: 1; color: var(--blanco); font-weight: 800; font-size: 19px; padding: 7px 10px; }
+  .op[data-i="1"] .fijo { color: var(--tinta); }
+  .imagen-zona { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+  .imagen-zona img { max-height: 160px; max-width: 100%; border-radius: 12px; border: 2px solid var(--linea); }
+  .imagen-zona .estado { color: var(--gris); font-size: 15px; }
   .acciones-editor { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; align-items: center; }
   .barra-guardar {
     position: sticky; bottom: 0; background: var(--papel);
@@ -213,7 +221,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '6';
+  const VERSION = '11';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -338,7 +346,7 @@
   }
 
   // ---------- 3. Editor ----------
-  const preguntaVacia = () => ({ texto: '', opciones: ['', '', '', ''], correcta: 0, tiempo: 20 });
+  const preguntaVacia = () => ({ tipo: 'multiple', texto: '', opciones: ['', '', '', ''], correcta: 0, tiempo: 20, imagen: null });
 
   function abrirEditor(juego) {
     editandoId = juego ? juego.id : null;
@@ -356,13 +364,67 @@
     $('j-titulo').focus();
   }
 
+  // ---------- Imágenes: achicar en el navegador y subir a Supabase ----------
+  let subiendo = 0;
+
+  function achicarImagen(archivo, maximo = 1280) {
+    return new Promise((resolver, rechazar) => {
+      const url = URL.createObjectURL(archivo);
+      const img = new Image();
+      img.onload = () => {
+        const escala = Math.min(1, maximo / Math.max(img.width, img.height));
+        const lienzo = document.createElement('canvas');
+        lienzo.width = Math.round(img.width * escala);
+        lienzo.height = Math.round(img.height * escala);
+        const c = lienzo.getContext('2d');
+        c.fillStyle = '#FFFFFF';
+        c.fillRect(0, 0, lienzo.width, lienzo.height);
+        c.drawImage(img, 0, 0, lienzo.width, lienzo.height);
+        URL.revokeObjectURL(url);
+        lienzo.toBlob(b => b ? resolver(b) : rechazar(new Error('No se pudo procesar la imagen')), 'image/jpeg', 0.82);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); rechazar(new Error('El archivo no es una imagen válida')); };
+      img.src = url;
+    });
+  }
+
+  async function subirImagen(archivo, p, estado) {
+    subiendo++;
+    estado.textContent = 'Subiendo imagen…';
+    try {
+      const blob = await achicarImagen(archivo);
+      const ruta = usuario.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+      const { error } = await cliente.storage.from('imagenes').upload(ruta, blob, { contentType: 'image/jpeg' });
+      if (error) throw error;
+      p.imagen = cliente.storage.from('imagenes').getPublicUrl(ruta).data.publicUrl;
+      subiendo--;
+      dibujarPreguntas();
+      mensaje('msg-editor', 'Imagen lista. Recuerda pulsar "Guardar juego".', 'ok');
+    } catch (e) {
+      subiendo--;
+      estado.textContent = 'No se pudo subir: ' + (e.message || e);
+    }
+  }
+
+  function quitarImagen(p) {
+    const marca = '/object/public/imagenes/';
+    if (p.imagen && p.imagen.includes(marca)) {
+      const ruta = decodeURIComponent(p.imagen.split(marca)[1]);
+      cliente.storage.from('imagenes').remove([ruta]); // si falla, no importa
+    }
+    p.imagen = null;
+    dibujarPreguntas();
+  }
+
   function dibujarPreguntas() {
     const cont = $('lista-preguntas');
     cont.innerHTML = '';
     preguntas.forEach((p, n) => {
+      if (!p.tipo) p.tipo = 'multiple';
       const t = document.createElement('div');
       t.className = 'tarjeta';
 
+      // Encabezado
       const cab = document.createElement('div');
       cab.className = 'pregunta-cab';
       const h3 = document.createElement('h3'); h3.textContent = 'Pregunta ' + (n + 1);
@@ -372,50 +434,102 @@
       quitar.addEventListener('click', () => { preguntas.splice(n, 1); dibujarPreguntas(); });
       cab.append(h3, quitar);
 
+      // Tipo de pregunta
+      const filaTipo = document.createElement('div');
+      filaTipo.className = 'fila';
+      const lTipo = document.createElement('label'); lTipo.textContent = 'Tipo'; lTipo.htmlFor = 'p' + n + '-tipo';
+      const sTipo = document.createElement('select'); sTipo.id = 'p' + n + '-tipo';
+      [['multiple', 'Opción múltiple (4 opciones)'], ['vf', 'Verdadero o falso']].forEach(([v, txt]) => {
+        const o = document.createElement('option'); o.value = v; o.textContent = txt;
+        if (p.tipo === v) o.selected = true;
+        sTipo.appendChild(o);
+      });
+      sTipo.addEventListener('change', () => {
+        if (sTipo.value === 'vf') {
+          p._multi = p.opciones;
+          p.opciones = ['Verdadero', 'Falso'];
+        } else {
+          p.opciones = p._multi && p._multi.length === 4 ? p._multi : ['', '', '', ''];
+        }
+        p.tipo = sTipo.value;
+        p.correcta = 0;
+        dibujarPreguntas();
+      });
+      filaTipo.append(lTipo, sTipo);
+
+      // Texto
       const lab = document.createElement('label');
-      lab.textContent = 'Texto de la pregunta';
+      lab.textContent = p.tipo === 'vf' ? 'Afirmación (¿es verdadera o falsa?)' : 'Texto de la pregunta';
       lab.htmlFor = 'p' + n + '-texto';
       const area = document.createElement('textarea');
       area.id = 'p' + n + '-texto'; area.maxLength = 160; area.value = p.texto;
-      area.placeholder = 'Ej.: ¿Cuál es el animal terrestre más rápido?';
+      area.placeholder = p.tipo === 'vf' ? 'Ej.: Las ballenas son peces.' : 'Ej.: ¿Cuál es el animal terrestre más rápido?';
       area.addEventListener('input', () => { p.texto = area.value; });
 
+      // Imagen
+      const zonaImg = document.createElement('div');
+      zonaImg.className = 'imagen-zona';
+      const estado = document.createElement('span'); estado.className = 'estado';
+      if (p.imagen) {
+        const vista = document.createElement('img');
+        vista.src = p.imagen; vista.alt = 'Imagen de la pregunta ' + (n + 1);
+        const bQuitar = document.createElement('button');
+        bQuitar.className = 'peligro'; bQuitar.textContent = 'Quitar imagen';
+        bQuitar.addEventListener('click', () => quitarImagen(p));
+        zonaImg.append(vista, bQuitar);
+      } else {
+        const archivo = document.createElement('input');
+        archivo.type = 'file'; archivo.accept = 'image/*'; archivo.hidden = true;
+        archivo.addEventListener('change', () => { if (archivo.files[0]) subirImagen(archivo.files[0], p, estado); });
+        const bSubir = document.createElement('button');
+        bSubir.className = 'secundario'; bSubir.textContent = '📷 Agregar imagen (opcional)';
+        bSubir.addEventListener('click', () => archivo.click());
+        zonaImg.append(bSubir, archivo, estado);
+      }
+
+      // Opciones
       const ops = document.createElement('div');
       ops.className = 'opciones';
       p.opciones.forEach((valor, i) => {
         const fila = document.createElement('div');
         fila.className = 'op'; fila.dataset.i = i;
         const forma = document.createElement('span'); forma.className = 'forma'; forma.textContent = FORMAS[i];
-        const inp = document.createElement('input');
-        inp.type = 'text'; inp.maxLength = 60; inp.value = valor;
-        inp.placeholder = 'Opción ' + (i + 1);
-        inp.setAttribute('aria-label', 'Opción ' + (i + 1) + ' de la pregunta ' + (n + 1));
-        inp.addEventListener('input', () => { p.opciones[i] = inp.value; });
+        let campo;
+        if (p.tipo === 'vf') {
+          campo = document.createElement('span'); campo.className = 'fijo'; campo.textContent = valor;
+        } else {
+          campo = document.createElement('input');
+          campo.type = 'text'; campo.maxLength = 60; campo.value = valor;
+          campo.placeholder = 'Opción ' + (i + 1);
+          campo.setAttribute('aria-label', 'Opción ' + (i + 1) + ' de la pregunta ' + (n + 1));
+          campo.addEventListener('input', () => { p.opciones[i] = campo.value; });
+        }
         const radio = document.createElement('input');
         radio.type = 'radio'; radio.name = 'correcta-' + n; radio.checked = p.correcta === i;
         radio.title = 'Marcar como respuesta correcta';
-        radio.setAttribute('aria-label', 'Opción ' + (i + 1) + ' es la correcta');
+        radio.setAttribute('aria-label', valor ? valor + ' es la correcta' : 'Opción ' + (i + 1) + ' es la correcta');
         radio.addEventListener('change', () => { p.correcta = i; });
-        fila.append(forma, inp, radio);
+        fila.append(forma, campo, radio);
         ops.appendChild(fila);
       });
       const nota = document.createElement('p');
       nota.className = 'nota-correcta';
       nota.textContent = 'Marca el círculo de la respuesta correcta.';
 
+      // Tiempo
       const tiempo = document.createElement('div');
       tiempo.className = 'tiempo';
       const lt = document.createElement('label'); lt.textContent = 'Tiempo para responder'; lt.htmlFor = 'p' + n + '-tiempo';
       const sel = document.createElement('select'); sel.id = 'p' + n + '-tiempo';
-      [10, 20, 30, 45, 60].forEach(s => {
-        const o = document.createElement('option'); o.value = s; o.textContent = s + ' segundos';
-        if (s === Number(p.tiempo || 20)) o.selected = true;
+      [10, 20, 30, 45, 60].forEach(seg => {
+        const o = document.createElement('option'); o.value = seg; o.textContent = seg + ' segundos';
+        if (seg === Number(p.tiempo || 20)) o.selected = true;
         sel.appendChild(o);
       });
       sel.addEventListener('change', () => { p.tiempo = Number(sel.value); });
       tiempo.append(lt, sel);
 
-      t.append(cab, lab, area, ops, nota, tiempo);
+      t.append(cab, filaTipo, lab, area, zonaImg, ops, nota, tiempo);
       cont.appendChild(t);
     });
   }
@@ -433,12 +547,20 @@
     const titulo = $('j-titulo').value.trim();
     if (!titulo) return mensaje('msg-editor', 'Escribe un título para el juego.', 'error');
 
+    if (subiendo) return mensaje('msg-editor', 'Espera a que termine de subir la imagen.', 'error');
+
     for (let n = 0; n < preguntas.length; n++) {
       const p = preguntas[n];
       p.texto = p.texto.trim();
-      p.opciones = p.opciones.map(o => o.trim());
       if (!p.texto) return mensaje('msg-editor', 'Falta el texto de la pregunta ' + (n + 1) + '.', 'error');
-      if (p.opciones.some(o => !o)) return mensaje('msg-editor', 'Completa las 4 opciones de la pregunta ' + (n + 1) + '.', 'error');
+      if (p.tipo === 'vf') {
+        p.opciones = ['Verdadero', 'Falso'];
+        if (p.correcta > 1) p.correcta = 0;
+      } else {
+        p.tipo = 'multiple';
+        p.opciones = p.opciones.map(o => o.trim());
+        if (p.opciones.some(o => !o)) return mensaje('msg-editor', 'Completa las 4 opciones de la pregunta ' + (n + 1) + '.', 'error');
+      }
     }
 
     const datos = {
@@ -446,7 +568,7 @@
       descripcion: $('j-descripcion').value.trim() || null,
       categoria: $('j-categoria').value,
       publico: $('j-publico').checked,
-      preguntas
+      preguntas: preguntas.map(({ _multi, ...resto }) => ({ ...resto, imagen: resto.imagen || null }))
     };
 
     $('guardar').disabled = true;
