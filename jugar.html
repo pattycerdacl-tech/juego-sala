@@ -88,6 +88,16 @@
   .resp:active { transform: scale(0.97); }
 
   .grande { font-size: 64px; line-height: 1; margin: 6px 0; }
+  .equipo-badge {
+    display: inline-block; font-size: 22px; font-weight: 800;
+    padding: 4px 18px; border-radius: 40px; margin-top: 4px; color: var(--blanco);
+  }
+  .equipo-badge[data-eq="0"] { background: var(--op0); }
+  .equipo-badge[data-eq="1"] { background: var(--op1); color: var(--tinta); }
+  .equipo-badge[data-eq="2"] { background: var(--op2); }
+  .equipo-badge[data-eq="3"] { background: var(--op3); }
+  #pregunta .equipo-badge { font-size: 16px; padding: 2px 12px; margin: 0 0 6px; }
+  #pregunta .centro { text-align: center; }
   #conexion { font-size: 14px; color: var(--blanco); opacity: 0.7; text-align: center; margin-top: 16px; }
 </style>
 </head>
@@ -109,11 +119,13 @@
   <section class="tarjeta" id="espera" hidden>
     <h1>¡Ya estás dentro!</h1>
     <div class="nombre" id="mi-nombre"></div>
+    <div><span class="equipo-badge" id="badge-espera" hidden></span></div>
     <p class="texto">Mira la TV. El juego empieza cuando el anfitrión lo indique.</p>
     <p class="nota" id="mi-sala"></p>
   </section>
 
   <section id="pregunta" hidden>
+    <div class="centro"><span class="equipo-badge" id="badge-pregunta" hidden></span></div>
     <p class="cabeza" id="num-pregunta"></p>
     <h2 id="texto-pregunta"></h2>
     <div class="botones">
@@ -134,6 +146,7 @@
     <div class="grande" id="res-icono"></div>
     <h1 id="res-titulo"></h1>
     <p class="texto" id="res-detalle"></p>
+    <p class="texto" id="res-equipo"></p>
     <p class="nota">Espera la siguiente pregunta.</p>
   </section>
 
@@ -141,6 +154,7 @@
     <div class="grande" id="fin-icono">🏁</div>
     <h1>¡Fin del juego!</h1>
     <p class="texto" id="fin-detalle"></p>
+    <p class="texto" id="fin-equipo"></p>
     <p class="nota">Si el anfitrión elige "Jugar otra vez", vuelves a la sala automáticamente.</p>
   </section>
 
@@ -151,7 +165,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '5';
+  const VERSION = '9';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -171,6 +185,31 @@
   let miNombre = '';
   let preguntaActual = -1;
   let yaRespondi = false;
+  const FORMAS = ['▲', '◆', '●', '■'];
+  let modoEquipos = false;
+  let nombresEquipos = [];
+  let miEquipo = null;
+
+  function actualizarEquipo() {
+    ['badge-espera', 'badge-pregunta'].forEach(id => {
+      const b = $(id);
+      if (modoEquipos && miEquipo !== null && miEquipo !== undefined) {
+        b.hidden = false;
+        b.dataset.eq = miEquipo;
+        b.textContent = FORMAS[miEquipo] + ' Equipo ' + nombresEquipos[miEquipo];
+      } else {
+        b.hidden = true;
+      }
+    });
+  }
+
+  function textoEquipo(lista, final) {
+    if (!modoEquipos || !lista) return '';
+    const e = lista.find(x => x.indice === miEquipo);
+    if (!e) return '';
+    if (final) return e.puesto === 1 ? '¡Ganó tu equipo ' + e.nombre + '! 🎉' : 'Tu equipo ' + e.nombre + ' quedó en el lugar ' + e.puesto + '.';
+    return 'Tu equipo ' + e.nombre + ' va en el lugar ' + e.puesto + ' (' + e.puntos + ' pts).';
+  }
 
   function verPantalla(cual) {
     ['entrada', 'espera', 'pregunta', 'enviado', 'resultado', 'final'].forEach(p => $(p).hidden = p !== cual);
@@ -193,6 +232,14 @@
     $('entrar').textContent = 'Entrando…';
 
     canal = cliente.channel('sala-' + pin);
+
+    // La TV informa el modo y los equipos
+    canal.on('broadcast', { event: 'equipos' }, ({ payload }) => {
+      modoEquipos = payload.modo === 'equipos';
+      nombresEquipos = payload.equipos || [];
+      miEquipo = payload.asignacion ? payload.asignacion[miId] : null;
+      actualizarEquipo();
+    });
 
     // La TV manda una pregunta
     canal.on('broadcast', { event: 'pregunta' }, ({ payload }) => {
@@ -223,6 +270,7 @@
         $('res-titulo').textContent = 'Incorrecto';
         $('res-detalle').textContent = 'Llevas ' + mio.total + ' puntos.';
       }
+      $('res-equipo').textContent = textoEquipo(payload.equipos, false);
       verPantalla('resultado');
     });
 
@@ -235,6 +283,8 @@
       } else {
         $('fin-detalle').textContent = 'Gracias por jugar.';
       }
+      $('fin-equipo').textContent = textoEquipo(payload.equipos, true);
+      if (modoEquipos && payload.equipos && payload.equipos[0] && payload.equipos[0].indice === miEquipo) $('fin-icono').textContent = '🏆';
       verPantalla('final');
     });
 
