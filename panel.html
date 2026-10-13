@@ -134,6 +134,9 @@
   .equipo-nombre .marca { width: 26px; height: 26px; border-radius: 6px; flex: none; }
   .nombres-equipos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-top: 4px; }
   @media (max-width: 600px) { .nombres-equipos { grid-template-columns: 1fr; } }
+  .volumen { display: flex; align-items: center; gap: 12px; }
+  .volumen input[type=range] { flex: 1; max-width: 320px; accent-color: var(--fondo); }
+  .volumen output { font-weight: 800; min-width: 3.5em; }
   .acciones-editor { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; align-items: center; }
   .barra-guardar {
     position: sticky; bottom: 0; background: var(--papel);
@@ -280,6 +283,29 @@
       </div>
     </div>
 
+    <div class="tarjeta seccion-config" id="musica">
+      <h3>🎵 Música y cierre</h3>
+      <p class="ayuda">El sonido se escucha en la TV después de pulsar "Activar sonido".</p>
+
+      <label for="s-estilo">Estilo de música</label>
+      <select id="s-estilo">
+        <option value="tranquila">Tranquila</option>
+        <option value="fiesta">Fiesta</option>
+        <option value="suspenso">Suspenso</option>
+        <option value="ninguna">Sin música (solo efectos)</option>
+      </select>
+
+      <label for="s-volumen">Volumen</label>
+      <div class="volumen"><input type="range" id="s-volumen" min="0" max="100" step="5" value="60"><output id="s-volumen-valor" for="s-volumen">60%</output></div>
+
+      <label class="check"><input type="checkbox" id="s-tictac"> Tic-tac en los últimos 5 segundos</label>
+      <label class="check"><input type="checkbox" id="s-efectos"> Efectos (entrada de jugadores, revelar respuesta, final)</label>
+
+      <label class="check"><input type="checkbox" id="d-activo"> Ofrecer diploma al final (el ganador en la TV y cada jugador en su teléfono)</label>
+      <label for="d-texto">Texto del diploma (opcional)</label>
+      <input type="text" id="d-texto" maxlength="100" placeholder="Ej.: por su gran participación en el repaso de Ciencias">
+    </div>
+
     <div id="lista-preguntas"></div>
 
     <div class="acciones-editor">
@@ -297,7 +323,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '14';
+  const VERSION = '15';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -445,6 +471,14 @@
     $('c-bienvenida').value = config.bienvenida || '';
     $('c-final').value = config.mensajeFinal || '';
     dibujarApariencia();
+    const so = config.sonido || {}, di = config.diploma || {};
+    $('s-estilo').value = ['tranquila', 'fiesta', 'suspenso', 'ninguna'].includes(so.estilo) ? so.estilo : 'tranquila';
+    $('s-volumen').value = Number.isFinite(Number(so.volumen)) ? so.volumen : 60;
+    $('s-volumen-valor').textContent = $('s-volumen').value + '%';
+    $('s-tictac').checked = so.tictac !== false;
+    $('s-efectos').checked = so.efectos !== false;
+    $('d-activo').checked = di.activo !== false;
+    $('d-texto').value = di.texto || '';
     const r = config.reglas || {}, e = config.equipos || {};
     $('r-puntaje').value = ['velocidad', 'acierto', 'sin'].includes(r.puntaje) ? r.puntaje : 'velocidad';
     $('r-ranking').value = ['siempre', 'final', 'nunca'].includes(r.ranking) ? r.ranking : 'siempre';
@@ -700,6 +734,7 @@
     });
   }
 
+  $('s-volumen').addEventListener('input', () => { $('s-volumen-valor').textContent = $('s-volumen').value + '%'; });
   $('nuevo').addEventListener('click', () => abrirEditor(null));
   $('volver').addEventListener('click', () => { verPantalla('lista'); cargarJuegos(); });
   $('agregar').addEventListener('click', () => {
@@ -748,6 +783,16 @@
           azarPreguntas: $('r-azar-preguntas').checked,
           azarOpciones: $('r-azar-opciones').checked,
           filtro: $('r-filtro').checked
+        },
+        sonido: {
+          estilo: $('s-estilo').value,
+          volumen: Number($('s-volumen').value),
+          tictac: $('s-tictac').checked,
+          efectos: $('s-efectos').checked
+        },
+        diploma: {
+          activo: $('d-activo').checked,
+          texto: $('d-texto').value.trim()
         },
         equipos: {
           modo: $('e-modo').value,
