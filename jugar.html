@@ -98,6 +98,13 @@
   .equipo-badge[data-eq="3"] { background: var(--op3); }
   #pregunta .equipo-badge { font-size: 16px; padding: 2px 12px; margin: 0 0 6px; }
   #pregunta .centro { text-align: center; }
+  .avatares { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 6px; }
+  .avatar {
+    font-size: 28px; line-height: 1.2; padding: 6px 0;
+    border-radius: 12px; border: 3px solid transparent; background: var(--blanco);
+  }
+  .avatar[aria-pressed="true"] { border-color: var(--tinta); background: var(--chip); }
+  .avatar-grande { font-size: 64px; line-height: 1; margin-top: 12px; }
   #conexion { font-size: 14px; color: var(--blanco); opacity: 0.7; text-align: center; margin-top: 16px; }
 </style>
 </head>
@@ -112,12 +119,15 @@
     </div>
     <label for="nombre">Tu apodo</label>
     <input id="nombre" maxlength="16" autocomplete="off" placeholder="Ej.: Tía Rosa">
+    <label id="et-avatar">Tu avatar</label>
+    <div class="avatares" id="avatares" role="group" aria-labelledby="et-avatar"></div>
     <button class="principal" id="entrar">Entrar a la sala</button>
     <p id="error" role="alert"></p>
   </section>
 
   <section class="tarjeta" id="espera" hidden>
     <h1>¡Ya estás dentro!</h1>
+    <div class="avatar-grande" id="mi-avatar"></div>
     <div class="nombre" id="mi-nombre"></div>
     <div><span class="equipo-badge" id="badge-espera" hidden></span></div>
     <p class="texto">Mira la TV. El juego empieza cuando el anfitrión lo indique.</p>
@@ -165,7 +175,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '9';
+  const VERSION = '10';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -181,6 +191,44 @@
   }
 
   const miId = 'j-' + Math.random().toString(36).slice(2, 10);
+
+  // ---------- Avatar ----------
+  const AVATARES = ['🐶', '🐱', '🦊', '🐼', '🐸', '🐵', '🦁', '🐯', '🐨', '🐷', '🐙', '🦄'];
+  let miAvatar = AVATARES[Math.floor(Math.random() * AVATARES.length)];
+  AVATARES.forEach(a => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'avatar'; b.textContent = a;
+    b.setAttribute('aria-pressed', a === miAvatar);
+    b.addEventListener('click', () => {
+      miAvatar = a;
+      document.querySelectorAll('.avatar').forEach(x => x.setAttribute('aria-pressed', x.textContent === a));
+    });
+    $('avatares').appendChild(b);
+  });
+
+  // ---------- Sonidos y vibración del teléfono ----------
+  let ctxAudio = null;
+  function prepararSonido() {
+    try {
+      if (!ctxAudio) ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctxAudio.state === 'suspended') ctxAudio.resume();
+    } catch (e) { ctxAudio = null; }
+  }
+  function sonar(tipo) {
+    const notas = { toque: [[660, 0, 0.06]], bien: [[660, 0, 0.12], [880, 0.1, 0.2]], mal: [[220, 0, 0.3]] }[tipo];
+    if (navigator.vibrate) navigator.vibrate({ toque: 25, bien: [60, 40, 60], mal: 220 }[tipo]);
+    if (!ctxAudio) return;
+    const t = ctxAudio.currentTime + 0.02;
+    notas.forEach(([f, d, dur]) => {
+      const o = ctxAudio.createOscillator(), g = ctxAudio.createGain();
+      o.type = tipo === 'mal' ? 'sawtooth' : 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t + d);
+      g.gain.exponentialRampToValueAtTime(0.15, t + d + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + d + dur);
+      o.connect(g); g.connect(ctxAudio.destination);
+      o.start(t + d); o.stop(t + d + dur + 0.05);
+    });
+  }
   let canal = null;
   let miNombre = '';
   let preguntaActual = -1;
@@ -216,12 +264,13 @@
   }
 
   function avisarALaTV() {
-    canal.send({ type: 'broadcast', event: 'hola', payload: { id: miId, nombre: miNombre } });
+    canal.send({ type: 'broadcast', event: 'hola', payload: { id: miId, nombre: miNombre, avatar: miAvatar } });
     $('conexion').textContent = 'Conectado a la sala · v' + VERSION;
   }
 
   // ---------- 2. Entrar ----------
   $('entrar').addEventListener('click', () => {
+    prepararSonido();
     const pin = $('pin').value.trim();
     miNombre = $('nombre').value.trim();
     $('error').textContent = '';
@@ -271,6 +320,7 @@
         $('res-detalle').textContent = 'Llevas ' + mio.total + ' puntos.';
       }
       $('res-equipo').textContent = textoEquipo(payload.equipos, false);
+      sonar(mio && mio.acerto ? 'bien' : 'mal');
       verPantalla('resultado');
     });
 
@@ -294,6 +344,7 @@
     canal.subscribe(situacion => {
       if (situacion === 'SUBSCRIBED') {
         $('mi-nombre').textContent = miNombre;
+        $('mi-avatar').textContent = miAvatar;
         $('mi-sala').textContent = 'Sala ' + pin;
         verPantalla('espera');
         avisarALaTV();
@@ -314,6 +365,7 @@
       yaRespondi = true;
       document.querySelectorAll('.resp').forEach(x => x.disabled = true);
       canal.send({ type: 'broadcast', event: 'respuesta', payload: { id: miId, indice: preguntaActual, opcion: Number(b.dataset.i) } });
+      sonar('toque');
       verPantalla('enviado');
     });
   });
