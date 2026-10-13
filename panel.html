@@ -130,6 +130,10 @@
   .tema[aria-pressed="true"] { border-color: var(--tinta); box-shadow: 0 0 0 2px var(--tinta); }
   .muestra { display: flex; height: 34px; border-radius: 8px; overflow: hidden; }
   .muestra span { flex: 1; }
+  .equipo-nombre { display: flex; align-items: center; gap: 8px; }
+  .equipo-nombre .marca { width: 26px; height: 26px; border-radius: 6px; flex: none; }
+  .nombres-equipos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-top: 4px; }
+  @media (max-width: 600px) { .nombres-equipos { grid-template-columns: 1fr; } }
   .acciones-editor { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; align-items: center; }
   .barra-guardar {
     position: sticky; bottom: 0; background: var(--papel);
@@ -230,6 +234,52 @@
       <div class="imagen-zona" id="zona-fondo"></div>
     </div>
 
+    <div class="tarjeta seccion-config" id="reglas">
+      <h3>⚙️ Reglas y equipos</h3>
+      <p class="ayuda">Cómo se juega y se puntúa este juego.</p>
+
+      <label for="r-puntaje">Puntaje</label>
+      <select id="r-puntaje">
+        <option value="velocidad">Acierto + rapidez (quien responde antes gana más)</option>
+        <option value="acierto">Solo acierto (1.000 puntos por respuesta correcta)</option>
+        <option value="sin">Sin puntaje (modo práctica, ideal para los más pequeños)</option>
+      </select>
+
+      <label for="r-ranking">Ranking</label>
+      <select id="r-ranking">
+        <option value="siempre">Mostrar después de cada pregunta</option>
+        <option value="final">Mostrar solo al final</option>
+        <option value="nunca">No mostrar (sin ganadores, todos celebran)</option>
+      </select>
+
+      <label class="check"><input type="checkbox" id="r-racha"> Bono por racha (+100 por cada acierto seguido, hasta +500)</label>
+      <label class="check"><input type="checkbox" id="r-azar-preguntas"> Preguntas en orden al azar</label>
+      <label class="check"><input type="checkbox" id="r-azar-opciones"> Opciones en orden al azar</label>
+      <label class="check"><input type="checkbox" id="r-filtro"> Filtrar apodos inapropiados (recomendado en el aula)</label>
+
+      <div class="fila">
+        <label for="e-modo">Modo al cargar</label>
+        <select id="e-modo">
+          <option value="individual">Individual</option>
+          <option value="equipos">Por equipos</option>
+        </select>
+        <label for="e-cantidad">Equipos</label>
+        <select id="e-cantidad">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </div>
+
+      <label>Nombres de los equipos (opcional)</label>
+      <div class="nombres-equipos">
+        <div class="equipo-nombre"><span class="marca" style="background: var(--op0)"></span><input type="text" id="e-n0" maxlength="16" placeholder="Rojo" aria-label="Nombre del equipo 1"></div>
+        <div class="equipo-nombre"><span class="marca" style="background: var(--op1)"></span><input type="text" id="e-n1" maxlength="16" placeholder="Amarillo" aria-label="Nombre del equipo 2"></div>
+        <div class="equipo-nombre"><span class="marca" style="background: var(--op2)"></span><input type="text" id="e-n2" maxlength="16" placeholder="Verde" aria-label="Nombre del equipo 3"></div>
+        <div class="equipo-nombre"><span class="marca" style="background: var(--op3)"></span><input type="text" id="e-n3" maxlength="16" placeholder="Morado" aria-label="Nombre del equipo 4"></div>
+      </div>
+    </div>
+
     <div id="lista-preguntas"></div>
 
     <div class="acciones-editor">
@@ -247,7 +297,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '13';
+  const VERSION = '14';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -395,6 +445,16 @@
     $('c-bienvenida').value = config.bienvenida || '';
     $('c-final').value = config.mensajeFinal || '';
     dibujarApariencia();
+    const r = config.reglas || {}, e = config.equipos || {};
+    $('r-puntaje').value = ['velocidad', 'acierto', 'sin'].includes(r.puntaje) ? r.puntaje : 'velocidad';
+    $('r-ranking').value = ['siempre', 'final', 'nunca'].includes(r.ranking) ? r.ranking : 'siempre';
+    $('r-racha').checked = !!r.racha;
+    $('r-azar-preguntas').checked = !!r.azarPreguntas;
+    $('r-azar-opciones').checked = !!r.azarOpciones;
+    $('r-filtro').checked = r.filtro !== false;
+    $('e-modo').value = e.modo === 'equipos' ? 'equipos' : 'individual';
+    $('e-cantidad').value = [2, 3, 4].includes(Number(e.cantidad)) ? String(e.cantidad) : '2';
+    for (let i = 0; i < 4; i++) $('e-n' + i).value = (e.nombres && e.nombres[i]) || '';
     preguntas = juego && juego.preguntas && juego.preguntas.length
       ? JSON.parse(JSON.stringify(juego.preguntas))
       : [preguntaVacia()];
@@ -680,7 +740,20 @@
         bienvenida: $('c-bienvenida').value.trim(),
         mensajeFinal: $('c-final').value.trim(),
         logo: config.logo || null,
-        fondo: config.fondo || null
+        fondo: config.fondo || null,
+        reglas: {
+          puntaje: $('r-puntaje').value,
+          ranking: $('r-ranking').value,
+          racha: $('r-racha').checked,
+          azarPreguntas: $('r-azar-preguntas').checked,
+          azarOpciones: $('r-azar-opciones').checked,
+          filtro: $('r-filtro').checked
+        },
+        equipos: {
+          modo: $('e-modo').value,
+          cantidad: Number($('e-cantidad').value),
+          nombres: [0, 1, 2, 3].map(i => $('e-n' + i).value.trim())
+        }
       },
       preguntas: preguntas.map(({ _multi, ...resto }) => ({ ...resto, imagen: resto.imagen || null }))
     };
