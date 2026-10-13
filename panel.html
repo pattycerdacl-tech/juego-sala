@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --fondo: #2433A6;
@@ -137,6 +138,14 @@
   .volumen { display: flex; align-items: center; gap: 12px; }
   .volumen input[type=range] { flex: 1; max-width: 320px; accent-color: var(--fondo); }
   .volumen output { font-weight: 800; min-width: 3.5em; }
+  .copiar-codigo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .copiar-codigo input { width: 9em; letter-spacing: 3px; text-transform: uppercase; font-weight: 800; }
+  #panel-ia { margin-top: 16px; border-color: var(--fondo); }
+  #panel-ia h3 { font-size: 22px; font-weight: 800; }
+  .pasos-ia { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 16px; }
+  @media (max-width: 600px) { .pasos-ia { grid-template-columns: 1fr; } }
+  #ia-instruccion, #ia-respuesta { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; min-height: 120px; }
+  .paso-ia { font-weight: 800; margin-top: 18px; }
   .acciones-editor { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; align-items: center; }
   .barra-guardar {
     position: sticky; bottom: 0; background: var(--papel);
@@ -179,6 +188,11 @@
     <div class="encabezado">
       <h2>Mis juegos</h2>
       <button class="acento" id="nuevo">+ Nuevo juego</button>
+    </div>
+    <div class="copiar-codigo">
+      <label for="copiar-codigo" style="margin:0">¿Te compartieron un juego? Escribe su código:</label>
+      <input type="text" id="copiar-codigo" maxlength="6" placeholder="XXXXXX" autocomplete="off">
+      <button class="secundario" id="copiar-btn">Copiar a mis juegos</button>
     </div>
     <p class="mensaje" id="msg-lista" role="status"></p>
     <div id="mis-juegos"></div>
@@ -310,6 +324,57 @@
 
     <div class="acciones-editor">
       <button class="secundario" id="agregar">+ Agregar pregunta</button>
+      <button class="secundario" id="importar">📥 Importar desde Excel o CSV</button>
+      <input type="file" id="archivo-importar" accept=".xlsx,.xls,.csv" hidden>
+      <button class="secundario" id="plantilla">📄 Descargar plantilla de Excel</button>
+      <button class="acento" id="abrir-ia">✨ Sugerir preguntas con IA</button>
+    </div>
+    <p class="mensaje" id="msg-importar" role="status"></p>
+
+    <div class="tarjeta" id="panel-ia" hidden>
+      <h3>✨ Preguntas sugeridas por IA</h3>
+      <p class="ayuda">Gratis con Claude: el panel arma la instrucción, tú la pegas en claude.ai y traes la respuesta de vuelta.</p>
+      <div class="pasos-ia">
+        <div>
+          <label for="ia-tema">Tema</label>
+          <input type="text" id="ia-tema" maxlength="120" placeholder="Ej.: el sistema solar">
+        </div>
+        <div>
+          <label for="ia-publico">Para quién</label>
+          <select id="ia-publico">
+            <option value="niños de 6 a 9 años">Niños de 6 a 9 años</option>
+            <option value="niños de 10 a 12 años">Niños de 10 a 12 años</option>
+            <option value="adolescentes de 13 a 17 años">Adolescentes</option>
+            <option value="toda la familia, con niños y adultos">Toda la familia</option>
+            <option value="adultos">Adultos</option>
+          </select>
+        </div>
+        <div>
+          <label for="ia-cantidad">Cantidad y tipo</label>
+          <div class="fila" style="margin-top:0">
+            <select id="ia-cantidad"><option>5</option><option selected>10</option><option>15</option><option>20</option></select>
+            <select id="ia-tipo">
+              <option value="mezcla">Mezcla</option>
+              <option value="multiple">Solo opción múltiple</option>
+              <option value="vf">Solo verdadero o falso</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <p class="paso-ia">1. Copia la instrucción</p>
+      <textarea id="ia-instruccion" readonly></textarea>
+      <div class="fila">
+        <button class="primario" id="ia-copiar">Copiar instrucción</button>
+        <a class="secundario" id="ia-abrir" href="https://claude.ai/new" target="_blank" rel="noopener" style="text-decoration:none; font-weight:700; padding:9px 16px; border-radius:12px; border:2px solid var(--fondo); color:var(--fondo)">2. Abrir Claude en otra pestaña ↗</a>
+        <span class="mensaje" id="ia-copiado"></span>
+      </div>
+      <p class="paso-ia">3. Pega aquí la respuesta completa de Claude</p>
+      <textarea id="ia-respuesta" placeholder="[ { &quot;texto&quot;: &quot;...&quot;, ... } ]"></textarea>
+      <div class="fila">
+        <button class="primario" id="ia-agregar">4. Agregar preguntas al juego</button>
+        <button class="secundario" id="ia-cerrar">Cerrar</button>
+      </div>
+      <p class="mensaje" id="msg-ia" role="status"></p>
     </div>
 
     <div class="barra-guardar">
@@ -323,7 +388,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '15';
+  const VERSION = '16';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -452,7 +517,11 @@
         cargarJuegos();
       });
 
-      tarjeta.append(info, codigo, editar, borrar);
+      const duplicar = document.createElement('button');
+      duplicar.className = 'secundario'; duplicar.textContent = 'Duplicar';
+      duplicar.addEventListener('click', () => copiarJuego(j, 'Copia de ' + j.titulo));
+
+      tarjeta.append(info, codigo, editar, duplicar, borrar);
       cont.appendChild(tarjeta);
     });
   }
@@ -542,6 +611,9 @@
   }
 
   function borrarDeStorage(url) {
+    // Las copias de un juego comparten sus imágenes, así que al quitar una imagen
+    // no borramos el archivo (el plan gratuito tiene espacio de sobra).
+    return;
     const marca = '/object/public/imagenes/';
     if (url && url.includes(marca)) {
       cliente.storage.from('imagenes').remove([decodeURIComponent(url.split(marca)[1])]); // si falla, no importa
@@ -735,6 +807,199 @@
   }
 
   $('s-volumen').addEventListener('input', () => { $('s-volumen-valor').textContent = $('s-volumen').value + '%'; });
+  // ---------- Duplicar y copiar por código ----------
+  async function copiarJuego(j, titulo) {
+    mensaje('msg-lista', 'Copiando…');
+    const { data, error } = await cliente.from('juegos').insert({
+      titulo: titulo.slice(0, 80),
+      descripcion: j.descripcion || null,
+      categoria: j.categoria || 'General',
+      publico: false,
+      preguntas: j.preguntas || [],
+      config: j.config || {}
+    }).select('codigo').single();
+    if (error) return mensaje('msg-lista', 'No se pudo copiar: ' + error.message, 'error');
+    mensaje('msg-lista', 'Listo: se creó "' + titulo.slice(0, 80) + '" con el código ' + data.codigo + ' (privado).', 'ok');
+    cargarJuegos();
+  }
+
+  $('copiar-btn').addEventListener('click', async () => {
+    const codigo = $('copiar-codigo').value.trim().toUpperCase();
+    if (!/^[0-9A-F]{6}$/.test(codigo)) return mensaje('msg-lista', 'El código tiene 6 caracteres (números y letras de la A a la F).', 'error');
+    const { data, error } = await cliente.rpc('juego_por_codigo', { p_codigo: codigo });
+    if (error) return mensaje('msg-lista', 'No se pudo buscar: ' + error.message, 'error');
+    if (!data || !data[0]) return mensaje('msg-lista', 'No existe un juego con el código ' + codigo + '.', 'error');
+    $('copiar-codigo').value = '';
+    copiarJuego(data[0], data[0].titulo + ' (copia)');
+  });
+
+  // ---------- Convertir una pregunta importada al formato del juego ----------
+  const sinTildes = t => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const TIEMPOS = [10, 20, 30, 45, 60];
+
+  // base1 = true cuando la respuesta correcta viene como 1, 2, 3, 4 (Excel); false cuando viene como 0..3 (IA)
+  function normalizarPregunta(raw, base1) {
+    const texto = String(raw.texto || '').trim().slice(0, 160);
+    if (!texto) return { error: 'falta el texto de la pregunta' };
+    const opciones = (raw.opciones || []).map(o => String(o === null || o === undefined ? '' : o).trim().slice(0, 60)).filter(Boolean);
+    const c = raw.correcta;
+    const cTexto = sinTildes(c === null || c === undefined ? '' : c);
+    const pareceVF = /^(v|f|verdadero|falso|true|false)$/.test(cTexto);
+    const tipoTexto = sinTildes(raw.tipo || '');
+    const esVF = tipoTexto === 'vf' || tipoTexto.startsWith('verdadero') || (opciones.length === 0 && pareceVF)
+      || (opciones.length === 2 && opciones.every(o => /^(verdadero|falso)$/.test(sinTildes(o))));
+    let tiempo = Number(raw.tiempo) || 20;
+    tiempo = TIEMPOS.reduce((a, b) => Math.abs(b - tiempo) < Math.abs(a - tiempo) ? b : a);
+
+    if (esVF) {
+      let correcta;
+      if (/^(v|verdadero|true)$/.test(cTexto)) correcta = 0;
+      else if (/^(f|falso|false)$/.test(cTexto)) correcta = 1;
+      else if (cTexto !== '' && !isNaN(Number(c))) correcta = Number(c) - (base1 ? 1 : 0);
+      if (correcta !== 0 && correcta !== 1) return { error: 'en verdadero/falso la correcta debe ser "Verdadero" o "Falso"' };
+      return { p: { tipo: 'vf', texto, opciones: ['Verdadero', 'Falso'], correcta, tiempo, imagen: null } };
+    }
+
+    if (opciones.length !== 4) return { error: 'necesita 4 opciones (tiene ' + opciones.length + ')' };
+    let correcta = -1;
+    if (cTexto !== '' && !isNaN(Number(c))) correcta = Number(c) - (base1 ? 1 : 0);
+    else if (/^[a-d]$/.test(cTexto)) correcta = 'abcd'.indexOf(cTexto);
+    else correcta = opciones.findIndex(o => sinTildes(o) === cTexto);
+    if (!(correcta >= 0 && correcta <= 3)) return { error: 'no se reconoce cuál es la respuesta correcta' };
+    return { p: { tipo: 'multiple', texto, opciones, correcta, tiempo, imagen: null } };
+  }
+
+  function agregarImportadas(nuevas) {
+    const vacia = preguntas.length === 1 && !preguntas[0].texto.trim() && preguntas[0].opciones.every(o => !String(o).trim());
+    preguntas = vacia ? nuevas : preguntas.concat(nuevas);
+    dibujarPreguntas();
+  }
+
+  // ---------- Importar desde Excel o CSV ----------
+  const COLUMNAS = { pregunta: 'texto', texto: 'texto', opcion1: 0, opcion2: 1, opcion3: 2, opcion4: 3, a: 0, b: 1, c: 2, d: 3,
+    correcta: 'correcta', respuestacorrecta: 'correcta', respuesta: 'correcta', tipo: 'tipo' };
+
+  $('importar').addEventListener('click', () => $('archivo-importar').click());
+  $('archivo-importar').addEventListener('change', async () => {
+    const archivo = $('archivo-importar').files[0];
+    $('archivo-importar').value = '';
+    if (!archivo) return;
+    mensaje('msg-importar', 'Leyendo ' + archivo.name + '…');
+    try {
+      const libro = XLSX.read(await archivo.arrayBuffer());
+      const filas = XLSX.utils.sheet_to_json(libro.Sheets[libro.SheetNames[0]], { header: 1, defval: '' });
+      if (filas.length < 2) return mensaje('msg-importar', 'El archivo no tiene preguntas (solo encabezado o vacío).', 'error');
+
+      // Identificar columnas por el encabezado; si no se reconoce, se usa el orden de la plantilla
+      const enc = filas[0].map(h => sinTildes(h).replace(/[^a-z0-9]/g, ''));
+      let mapa = enc.map(h => h.startsWith('tiempo') ? 'tiempo' : (h in COLUMNAS ? COLUMNAS[h] : null));
+      if (!mapa.includes('texto')) mapa = ['texto', 0, 1, 2, 3, 'correcta', 'tiempo'];
+
+      const nuevas = [], errores = [];
+      filas.slice(1).forEach((fila, k) => {
+        if (fila.every(v => String(v).trim() === '')) return; // fila vacía
+        const raw = { opciones: ['', '', '', ''] };
+        mapa.forEach((campo, i) => {
+          if (campo === null || campo === undefined) return;
+          if (typeof campo === 'number') raw.opciones[campo] = fila[i]; else raw[campo] = fila[i];
+        });
+        const r = normalizarPregunta(raw, true);
+        if (r.p) nuevas.push(r.p); else errores.push('fila ' + (k + 2) + ': ' + r.error);
+      });
+
+      if (nuevas.length) agregarImportadas(nuevas);
+      const txt = 'Se importaron ' + nuevas.length + ' preguntas.' +
+        (errores.length ? ' No se pudieron importar ' + errores.length + ' (' + errores.slice(0, 3).join('; ') + (errores.length > 3 ? '…' : '') + ').' : '') +
+        (nuevas.length ? ' Revísalas y pulsa "Guardar juego".' : '');
+      mensaje('msg-importar', txt, errores.length && !nuevas.length ? 'error' : 'ok');
+    } catch (e) {
+      mensaje('msg-importar', 'No se pudo leer el archivo: ' + (e.message || e), 'error');
+    }
+  });
+
+  $('plantilla').addEventListener('click', () => {
+    const datos = [
+      ['Pregunta', 'Opción 1', 'Opción 2', 'Opción 3', 'Opción 4', 'Correcta', 'Tiempo (segundos)'],
+      ['¿Cuál es el planeta más grande del sistema solar?', 'Júpiter', 'Saturno', 'Tierra', 'Marte', 1, 20],
+      ['¿Cuántas patas tiene una araña?', '6', '8', '10', '12', 2, 20],
+      ['Las ballenas son peces.', '', '', '', '', 'Falso', 20]
+    ];
+    const hoja = XLSX.utils.aoa_to_sheet(datos);
+    hoja['!cols'] = [{ wch: 50 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 18 }];
+    const ayuda = XLSX.utils.aoa_to_sheet([
+      ['Cómo llenar la plantilla'],
+      ['• Una pregunta por fila, en la primera hoja. No cambies la fila de encabezados.'],
+      ['• Opción múltiple: escribe las 4 opciones y en "Correcta" el número (1 a 4), la letra (A a D) o el texto de la opción correcta.'],
+      ['• Verdadero o falso: deja las opciones vacías y escribe en "Correcta" Verdadero o Falso.'],
+      ['• Tiempo: 10, 20, 30, 45 o 60 segundos. Si lo dejas vacío, se usan 20.'],
+      ['• Guarda como .xlsx o .csv y usa "Importar desde Excel o CSV" en el panel.']
+    ]);
+    ayuda['!cols'] = [{ wch: 110 }];
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, 'Preguntas');
+    XLSX.utils.book_append_sheet(libro, ayuda, 'Instrucciones');
+    XLSX.writeFile(libro, 'plantilla-preguntas.xlsx');
+  });
+
+  // ---------- Preguntas sugeridas por IA (copiar y pegar con Claude) ----------
+  function armarInstruccion() {
+    const tema = $('ia-tema').value.trim() || '[escribe aquí el tema]';
+    const tipo = { mezcla: 'mezcla de opción múltiple y verdadero o falso (más o menos 3 de cada 4 de opción múltiple)',
+                   multiple: 'solo de opción múltiple', vf: 'solo de verdadero o falso' }[$('ia-tipo').value];
+    $('ia-instruccion').value =
+`Crea ${$('ia-cantidad').value} preguntas de trivia en español sobre "${tema}" para ${$('ia-publico').value}. Usa preguntas ${tipo}.
+
+Requisitos:
+- Datos correctos y verificables, con lenguaje adecuado a la edad.
+- Preguntas de máximo 160 caracteres y opciones de máximo 60 caracteres.
+- Opciones incorrectas creíbles, sin trampas ni "todas las anteriores".
+- Varía la posición de la respuesta correcta.
+
+Responde SOLO con un arreglo JSON válido, sin texto antes ni después, con este formato exacto:
+[
+  {"tipo": "multiple", "texto": "¿Pregunta?", "opciones": ["A", "B", "C", "D"], "correcta": 0, "tiempo": 20},
+  {"tipo": "vf", "texto": "Afirmación.", "opciones": ["Verdadero", "Falso"], "correcta": 1, "tiempo": 20}
+]
+"correcta" es la posición de la respuesta correcta empezando en 0. "tiempo" puede ser 10, 20 o 30 segundos según la dificultad.`;
+  }
+
+  ['ia-tema', 'ia-publico', 'ia-cantidad', 'ia-tipo'].forEach(id => $(id).addEventListener('input', armarInstruccion));
+  $('abrir-ia').addEventListener('click', () => {
+    $('panel-ia').hidden = false;
+    if (!$('ia-tema').value) $('ia-tema').value = $('j-titulo').value.trim();
+    armarInstruccion();
+    $('panel-ia').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('ia-tema').focus();
+  });
+  $('ia-cerrar').addEventListener('click', () => { $('panel-ia').hidden = true; });
+
+  $('ia-copiar').addEventListener('click', async () => {
+    armarInstruccion();
+    try { await navigator.clipboard.writeText($('ia-instruccion').value); }
+    catch (e) { $('ia-instruccion').select(); document.execCommand('copy'); }
+    $('ia-copiado').textContent = '¡Copiada! Ahora pégala en Claude.';
+    $('ia-copiado').className = 'mensaje ok';
+  });
+
+  $('ia-agregar').addEventListener('click', () => {
+    const texto = $('ia-respuesta').value;
+    const ini = texto.indexOf('['), fin = texto.lastIndexOf(']');
+    if (ini < 0 || fin < ini) return mensaje('msg-ia', 'No encontré la lista de preguntas. Pega la respuesta completa de Claude, incluidos los corchetes [ ].', 'error');
+    let lista;
+    try { lista = JSON.parse(texto.slice(ini, fin + 1)); }
+    catch (e) { return mensaje('msg-ia', 'La respuesta no tiene el formato esperado. Pídele a Claude: "Responde solo con el JSON".', 'error'); }
+    if (!Array.isArray(lista)) return mensaje('msg-ia', 'La respuesta no es una lista de preguntas.', 'error');
+    const nuevas = [], errores = [];
+    lista.forEach((raw, k) => {
+      const r = normalizarPregunta(raw || {}, false);
+      if (r.p) nuevas.push(r.p); else errores.push('pregunta ' + (k + 1) + ': ' + r.error);
+    });
+    if (nuevas.length) agregarImportadas(nuevas);
+    mensaje('msg-ia', 'Se agregaron ' + nuevas.length + ' preguntas.' + (errores.length ? ' Se omitieron ' + errores.length + '.' : '') +
+      (nuevas.length ? ' Revisa que los datos sean correctos y pulsa "Guardar juego".' : ''), nuevas.length ? 'ok' : 'error');
+    if (nuevas.length) $('ia-respuesta').value = '';
+  });
+
   $('nuevo').addEventListener('click', () => abrirEditor(null));
   $('volver').addEventListener('click', () => { verPantalla('lista'); cargarJuegos(); });
   $('agregar').addEventListener('click', () => {
