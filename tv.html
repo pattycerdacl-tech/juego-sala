@@ -165,7 +165,14 @@
     font-size: calc(var(--u) * 3.4); font-weight: 800;
   }
   #texto-pregunta { grid-column: 1; grid-row: 2; font-size: calc(var(--u) * 3.6); font-weight: 800; line-height: 1.1; margin: 2vh 0 3vh; max-width: 60ch; }
-  #opciones { grid-column: 1; grid-row: 3; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: calc(var(--u) * 1.6); }
+  #zona { grid-column: 1; grid-row: 3; min-height: 0; display: flex; gap: calc(var(--u) * 1.6); }
+  #imagen {
+    flex: 0 0 40%; min-width: 0; max-height: 100%; object-fit: contain;
+    border-radius: calc(var(--u) * 1.6); background: rgba(255, 255, 255, 0.08);
+  }
+  #opciones { flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: calc(var(--u) * 1.6); }
+  #opciones.dos { grid-template-rows: 1fr; }
+  #opciones.dos .opcion { font-size: calc(var(--u) * 3.4); justify-content: center; }
   .opcion {
     min-height: 0; overflow: hidden;
     border-radius: calc(var(--u) * 1.6); padding: 2vh calc(var(--u) * 2);
@@ -248,11 +255,14 @@
 <main id="juego" hidden>
   <div class="barra"><span id="num-pregunta">Pregunta 1 de 3</span><span id="reloj">20</span></div>
   <h1 id="texto-pregunta"></h1>
+  <div id="zona">
+  <img id="imagen" alt="Imagen de la pregunta" hidden>
   <div id="opciones">
     <div class="opcion" data-i="0"><span class="forma">▲</span><span class="txt"></span><span class="votos" hidden></span></div>
     <div class="opcion" data-i="1"><span class="forma">◆</span><span class="txt"></span><span class="votos" hidden></span></div>
     <div class="opcion" data-i="2"><span class="forma">●</span><span class="txt"></span><span class="votos" hidden></span></div>
     <div class="opcion" data-i="3"><span class="forma">■</span><span class="txt"></span><span class="votos" hidden></span></div>
+  </div>
   </div>
   <aside id="ranking-caja" hidden><h2 id="ranking-titulo">Ranking</h2><ol class="tabla" id="ranking"></ol></aside>
   <div class="pie">
@@ -273,7 +283,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '10';
+  const VERSION = '11';
 
   // Preguntas de respaldo (se usan si no se puede cargar ningún juego)
   let PREGUNTAS = [
@@ -528,16 +538,22 @@
     verPantalla('juego');
     $('num-pregunta').textContent = 'Pregunta ' + (indice + 1) + ' de ' + PREGUNTAS.length;
     $('texto-pregunta').textContent = p.texto;
+    const cuantas = p.opciones.length;
+    $('opciones').classList.toggle('dos', cuantas === 2);
     document.querySelectorAll('.opcion').forEach((el, i) => {
+      el.hidden = i >= cuantas;
       el.classList.remove('apagada', 'correcta');
-      el.querySelector('.txt').textContent = p.opciones[i];
+      el.querySelector('.txt').textContent = p.opciones[i] || '';
       el.querySelector('.votos').hidden = true;
     });
+    const img = $('imagen');
+    if (imagenValida(p.imagen)) { img.src = p.imagen; img.hidden = false; }
+    else { img.hidden = true; img.removeAttribute('src'); }
     $('ranking-caja').hidden = true;
     $('siguiente').hidden = true;
     actualizarConteo();
     inicio = Date.now();
-    enviar('pregunta', { indice, total: PREGUNTAS.length, texto: p.texto, opciones: p.opciones, tiempo: tiempoActual });
+    enviar('pregunta', { indice, total: PREGUNTAS.length, tipo: p.tipo || 'multiple', texto: p.texto, opciones: p.opciones, tiempo: tiempoActual, conImagen: imagenValida(p.imagen) });
     Sonido.musica('pregunta');
     let ultimoSegundo = null;
     clearInterval(relojId);
@@ -559,7 +575,7 @@
   canal.on('broadcast', { event: 'respuesta' }, ({ payload }) => {
     if (fase !== 'pregunta' || !payload || payload.indice !== indice || respuestas.has(payload.id)) return;
     const opcion = Number(payload.opcion);
-    if (!(opcion >= 0 && opcion <= 3)) return;
+    if (!(opcion >= 0 && opcion < PREGUNTAS[indice].opciones.length)) return;
     respuestas.set(payload.id, { opcion, ms: Date.now() - inicio });
     actualizarConteo();
     if (respuestas.size >= jugadores.size) revelar();
@@ -662,14 +678,19 @@
   }
 
   // ---------- 4. Elegir juego ----------
+  const imagenValida = u => typeof u === 'string' && u.startsWith('https://');
+
   function preguntasValidas(lista) {
     return Array.isArray(lista) && lista.length > 0 && lista.every(p =>
-      p && typeof p.texto === 'string' && Array.isArray(p.opciones) && p.opciones.length === 4 &&
-      Number.isInteger(p.correcta) && p.correcta >= 0 && p.correcta <= 3);
+      p && typeof p.texto === 'string' && Array.isArray(p.opciones) &&
+      (p.opciones.length === 4 || p.opciones.length === 2) &&
+      Number.isInteger(p.correcta) && p.correcta >= 0 && p.correcta < p.opciones.length);
   }
 
   function aplicarJuego(j) {
     PREGUNTAS = j.preguntas;
+    // Precargar las imágenes para que aparezcan al instante
+    j.preguntas.forEach(p => { if (imagenValida(p.imagen)) new Image().src = p.imagen; });
     codigoActual = j.codigo;
     $('juego-titulo').textContent = j.titulo;
     $('juego-n').textContent = '(' + j.preguntas.length + (j.preguntas.length === 1 ? ' pregunta)' : ' preguntas)');
