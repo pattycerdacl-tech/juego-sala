@@ -132,6 +132,7 @@
     padding: 0.3vh calc(var(--u) * 1.4);
   }
   .boton-sonido:focus-visible { outline: calc(var(--u) * 0.3) solid var(--blanco); outline-offset: calc(var(--u) * 0.2); }
+  #reglas-resumen { font-size: calc(var(--u) * 1.3); color: var(--suave); margin-top: 0.8vh; }
   .logo { display: block; max-height: 12vh; max-width: 80%; object-fit: contain; margin: 0 auto 1.5vh; }
   #mensaje-final { font-size: calc(var(--u) * 2); margin: 0 auto 2vh; max-width: 60ch; }
   #mejor { font-size: calc(var(--u) * 1.8); color: var(--suave); margin-top: 2vh; }
@@ -237,6 +238,7 @@
       </div>
       <p id="msg-juego" role="status"></p>
       <div id="biblioteca"></div>
+      <p id="reglas-resumen"></p>
       <div class="modo">
         <span class="et">Modo</span>
         <button class="pildora activo" id="modo-ind">Individual</button>
@@ -294,9 +296,14 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '13';
+  const VERSION = '14';
 
   // Preguntas de respaldo (se usan si no se puede cargar ningún juego)
+  let ronda = [];              // preguntas de la partida en curso (ya mezcladas si corresponde)
+  const rachas = new Map();    // id -> aciertos seguidos
+  const aciertos = new Map();  // id -> total de aciertos
+  const REGLAS_BASE = { puntaje: 'velocidad', racha: false, azarPreguntas: false, azarOpciones: false, ranking: 'siempre', filtro: true };
+  let reglas = { ...REGLAS_BASE };
   let PREGUNTAS = [
     { texto: '¿Cuál es el planeta más grande del sistema solar?', opciones: ['Júpiter', 'Saturno', 'Tierra', 'Marte'], correcta: 0, tiempo: 20 },
     { texto: '¿Cuántas patas tiene una araña?', opciones: ['6', '8', '10', '12'], correcta: 1, tiempo: 20 },
@@ -512,7 +519,8 @@
 
   canal.on('broadcast', { event: 'hola' }, ({ payload }) => {
     if (!payload || !payload.id || !payload.nombre) return;
-    const nombre = String(payload.nombre).slice(0, 16);
+    let nombre = String(payload.nombre).slice(0, 16);
+    if (reglas.filtro && esInapropiado(nombre)) nombre = 'Jugador ' + payload.id.slice(-3).toUpperCase();
     const avatar = AVATARES.includes(payload.avatar) ? payload.avatar : '🙂';
     const nuevo = !jugadores.has(payload.id);
     jugadores.set(payload.id, { nombre, avatar, visto: Date.now() });
@@ -541,13 +549,13 @@
 
   function siguientePregunta() {
     indice++;
-    if (indice >= PREGUNTAS.length) return finalizar();
-    const p = PREGUNTAS[indice];
+    if (indice >= ronda.length) return finalizar();
+    const p = ronda[indice];
     fase = 'pregunta';
     respuestas.clear();
     tiempoActual = Number(p.tiempo) || 20;
     verPantalla('juego');
-    $('num-pregunta').textContent = 'Pregunta ' + (indice + 1) + ' de ' + PREGUNTAS.length;
+    $('num-pregunta').textContent = 'Pregunta ' + (indice + 1) + ' de ' + ronda.length;
     $('texto-pregunta').textContent = p.texto;
     const cuantas = p.opciones.length;
     $('opciones').classList.toggle('dos', cuantas === 2);
@@ -564,7 +572,7 @@
     $('siguiente').hidden = true;
     actualizarConteo();
     inicio = Date.now();
-    enviar('pregunta', { indice, total: PREGUNTAS.length, tipo: p.tipo || 'multiple', texto: p.texto, opciones: p.opciones, tiempo: tiempoActual, conImagen: imagenValida(p.imagen) });
+    enviar('pregunta', { indice, total: ronda.length, tipo: p.tipo || 'multiple', texto: p.texto, opciones: p.opciones, tiempo: tiempoActual, conImagen: imagenValida(p.imagen) });
     Sonido.musica('pregunta');
     programarBots(p);
     let ultimoSegundo = null;
@@ -587,7 +595,7 @@
   function registrarRespuesta(id, ind, opcionRecibida) {
     if (fase !== 'pregunta' || !id || ind !== indice || respuestas.has(id)) return;
     const opcion = Number(opcionRecibida);
-    if (!(opcion >= 0 && opcion < PREGUNTAS[indice].opciones.length)) return;
+    if (!(opcion >= 0 && opcion < ronda[indice].opciones.length)) return;
     respuestas.set(id, { opcion, ms: Date.now() - inicio });
     actualizarConteo();
     if (respuestas.size >= jugadores.size) revelar();
@@ -655,20 +663,21 @@
     clearInterval(relojId);
     Sonido.musica(null);
     Sonido.efecto('revelar');
-    const p = PREGUNTAS[indice];
+    const p = ronda[indice];
     const votos = [0, 0, 0, 0];
     const resultado = {};
 
     for (const [id, r] of respuestas) {
       votos[r.opcion]++;
       const acerto = r.opcion === p.correcta;
-      const ganados = acerto ? Math.round(1000 * (1 - Math.min(r.ms, tiempoActual * 1000) / (tiempoActual * 1000) / 2)) : 0;
+      const ganados = calcularPuntos(id, acerto, r.ms);
+      if (acerto) aciertos.set(id, (aciertos.get(id) || 0) + 1);
       if (!puntajes.has(id)) { const j = jugadores.get(id) || {}; puntajes.set(id, { nombre: j.nombre || 'Jugador', avatar: j.avatar || '🙂', puntos: 0 }); }
       puntajes.get(id).puntos += ganados;
-      resultado[id] = { acerto, ganados };
+      resultado[id] = { acerto, ganados, racha: rachas.get(id) || 0 };
     }
     for (const [id, s] of puntajes) {
-      if (!resultado[id]) resultado[id] = { acerto: false, ganados: 0, sinRespuesta: true };
+      if (!resultado[id]) { rachas.set(id, 0); resultado[id] = { acerto: false, ganados: 0, racha: 0, sinRespuesta: true }; }
       resultado[id].total = s.puntos;
     }
 
@@ -687,12 +696,12 @@
       $('ranking-titulo').textContent = 'Ranking';
       mostrarTabla($('ranking'), 5);
     }
-    $('ranking-caja').hidden = false;
-    $('siguiente').textContent = indice + 1 < PREGUNTAS.length ? 'Siguiente pregunta' : 'Ver resultados';
+    $('ranking-caja').hidden = !rankingVisible('pregunta');
+    $('siguiente').textContent = indice + 1 < ronda.length ? 'Siguiente pregunta' : 'Ver resultados';
     $('siguiente').hidden = false;
     $('siguiente').focus();
 
-    enviar('resultado', { indice, correcta: p.correcta, resultado, equipos: modo === 'equipos' ? rankingEquipos() : null });
+    enviar('resultado', { indice, correcta: p.correcta, resultado, equipos: modo === 'equipos' && rankingVisible('pregunta') ? rankingEquipos() : null, mostrarPuntos: reglas.puntaje !== 'sin' });
   }
 
   function ordenados() {
@@ -717,7 +726,21 @@
     verPantalla('final');
     const lista = ordenados();
     let equipos = null;
-    if (modo === 'equipos') {
+    const aciertosObj = {};
+    for (const id of new Set([...jugadores.keys(), ...puntajes.keys()])) aciertosObj[id] = aciertos.get(id) || 0;
+    if (!rankingVisible('final')) {
+      // Sin ganadores: solo se celebra a todos los que jugaron
+      $('ganador').textContent = '🎉 ¡Bien jugado, todos!';
+      const podio = $('podio');
+      podio.innerHTML = '';
+      for (const id of Object.keys(aciertosObj)) {
+        const j = jugadores.get(id) || puntajes.get(id) || {};
+        const li = document.createElement('li');
+        const a = document.createElement('span'); a.textContent = (j.avatar || '🙂') + ' ' + (j.nombre || 'Jugador');
+        li.append(a); podio.appendChild(li);
+      }
+      $('mejor').textContent = '';
+    } else if (modo === 'equipos') {
       equipos = rankingEquipos();
       $('ganador').textContent = '🏆 Gana el equipo ' + equipos[0].nombre + ' con ' + equipos[0].puntos + ' puntos';
       mostrarTablaEquipos($('podio'));
@@ -728,7 +751,7 @@
       $('mejor').textContent = '';
     }
     $('otra').focus();
-    enviar('final', { ranking: lista.map((j, i) => ({ id: j.id, puesto: i + 1, puntos: j.puntos })), equipos });
+    enviar('final', { ranking: lista.map((j, i) => ({ id: j.id, puesto: i + 1, puntos: j.puntos })), equipos: rankingVisible('final') ? equipos : null, mostrarPuesto: rankingVisible('final'), aciertos: aciertosObj, total: ronda.length });
   }
 
   function reiniciar() {
@@ -797,8 +820,97 @@
       Number.isInteger(p.correcta) && p.correcta >= 0 && p.correcta < p.opciones.length);
   }
 
+  // ---------- Reglas del juego ----------
+  const mezclar_ = arr => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); [a[i], a[k]] = [a[k], a[i]]; } return a; };
+  const NOMBRES_EQUIPO_BASE = ['Rojo', 'Amarillo', 'Verde', 'Morado'];
+
+  function aplicarReglas(c) {
+    c = c || {};
+    const r = c.reglas || {};
+    reglas = {
+      puntaje: ['velocidad', 'acierto', 'sin'].includes(r.puntaje) ? r.puntaje : 'velocidad',
+      racha: !!r.racha,
+      azarPreguntas: !!r.azarPreguntas,
+      azarOpciones: !!r.azarOpciones,
+      ranking: ['siempre', 'final', 'nunca'].includes(r.ranking) ? r.ranking : 'siempre',
+      filtro: r.filtro !== false
+    };
+    // Equipos: nombres propios, modo y cantidad iniciales
+    const e = c.equipos || {};
+    const nombres = Array.isArray(e.nombres) ? e.nombres : [];
+    EQUIPOS.forEach((eq, i) => {
+      const n = String(nombres[i] || '').trim().slice(0, 16);
+      eq.nombre = n && !esInapropiado(n) ? n : NOMBRES_EQUIPO_BASE[i];
+    });
+    numEquipos = [2, 3, 4].includes(Number(e.cantidad)) ? Number(e.cantidad) : numEquipos;
+    ponerModo(e.modo === 'equipos' ? 'equipos' : 'individual');
+
+    const partes = [
+      { velocidad: 'Puntos por acierto y rapidez', acierto: 'Puntos solo por acierto', sin: 'Sin puntaje' }[reglas.puntaje],
+      reglas.racha && reglas.puntaje !== 'sin' ? 'bono por racha' : '',
+      reglas.azarPreguntas ? 'preguntas al azar' : '',
+      reglas.azarOpciones ? 'opciones al azar' : '',
+      { siempre: '', final: 'ranking solo al final', nunca: 'sin ranking' }[reglas.ranking]
+    ].filter(Boolean);
+    $('reglas-resumen').textContent = 'Reglas: ' + partes.join(' · ');
+  }
+
+  function rankingVisible(momento) {
+    if (reglas.puntaje === 'sin' || reglas.ranking === 'nunca') return false;
+    return momento === 'final' || reglas.ranking === 'siempre';
+  }
+
+  function calcularPuntos(id, acerto, ms) {
+    if (!acerto) { rachas.set(id, 0); return 0; }
+    const racha = (rachas.get(id) || 0) + 1;
+    rachas.set(id, racha);
+    if (reglas.puntaje === 'sin') return 0;
+    const total = tiempoActual * 1000;
+    let puntos = reglas.puntaje === 'acierto' ? 1000 : Math.round(1000 * (1 - Math.min(ms, total) / total / 2));
+    if (reglas.racha && racha > 1) puntos += Math.min(500, (racha - 1) * 100);
+    return puntos;
+  }
+
+  function prepararRonda() {
+    let lista = PREGUNTAS.map(p => ({ ...p, opciones: [...p.opciones] }));
+    if (reglas.azarPreguntas) lista = mezclar_(lista);
+    if (reglas.azarOpciones) {
+      lista = lista.map(p => {
+        if (p.tipo === 'vf' || p.opciones.length !== 4) return p;
+        const orden = mezclar_([0, 1, 2, 3]);
+        return { ...p, opciones: orden.map(i => p.opciones[i]), correcta: orden.indexOf(p.correcta) };
+      });
+    }
+    return lista;
+  }
+
+  function iniciarPartida() {
+    ronda = prepararRonda();
+    indice = -1;
+    puntajes.clear();
+    rachas.clear();
+    aciertos.clear();
+    siguientePregunta();
+  }
+
+  // Filtro simple de palabras inapropiadas en apodos.
+  // Palabras cortas: solo como palabra completa (así "Penélope" o "Maricarmen" no se bloquean).
+  const BLOQUEO_EXACTO = ['pene', 'culo', 'cono', 'pico', 'raja', 'ctm', 'nazi', 'marica', 'tetas', 'puta', 'puto', 'weon', 'perra'];
+  const BLOQUEO_INICIO = ['puta', 'puto', 'weon', 'hueon'];
+  const BLOQUEO_PARTE = ['mierda', 'verga', 'vagina', 'joder', 'pendej', 'cabron', 'aweonao', 'culiao', 'conchetu', 'maricon',
+    'imbecil', 'idiota', 'estupid', 'chucha', 'zorra', 'mamon', 'sexo', 'porno', 'hitler', 'polla', 'gilipollas', 'fuck', 'shit', 'bitch'];
+  function esInapropiado(texto) {
+    const t = String(texto).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4|@/g, 'a').replace(/5/g, 's').replace(/7/g, 't');
+    const palabras = t.split(/[^a-z]+/).filter(Boolean);
+    const junto = palabras.join('');
+    return palabras.some(w => BLOQUEO_EXACTO.includes(w) || BLOQUEO_INICIO.some(b => w.startsWith(b)))
+      || BLOQUEO_PARTE.some(b => junto.includes(b));
+  }
+
   function aplicarJuego(j) {
     aplicarTema(j.config);
+    aplicarReglas(j.config);
     PREGUNTAS = j.preguntas;
     // Precargar las imágenes para que aparezcan al instante
     j.preguntas.forEach(p => { if (imagenValida(p.imagen)) new Image().src = p.imagen; });
@@ -853,7 +965,7 @@
   $('codigo').addEventListener('keydown', e => { if (e.key === 'Enter') cargarPorCodigo($('codigo').value); });
   cargarBiblioteca();
 
-  $('empezar').addEventListener('click', () => { if (jugadores.size && PREGUNTAS.length) siguientePregunta(); });
+  $('empezar').addEventListener('click', () => { if (jugadores.size && PREGUNTAS.length) iniciarPartida(); });
   $('siguiente').addEventListener('click', siguientePregunta);
   $('otra').addEventListener('click', reiniciar);
 
