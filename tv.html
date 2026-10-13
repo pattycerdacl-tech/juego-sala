@@ -11,6 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root {
+    --u: min(1vw, 1.7778vh);
     --fondo: #2433A6;
     --fondo-2: #1C2885;
     --boleto: #FFD23F;
@@ -38,79 +39,80 @@
     height: 100%;
     display: grid;
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-    gap: 4vw;
-    padding: 5vh 5vw;
+    gap: calc(var(--u) * 4);
+    padding: 5vh calc(var(--u) * 5);
     align-items: center;
+    overflow: hidden;
   }
   .boleto {
     background: var(--boleto);
     color: var(--tinta);
-    border-radius: 2.4vw;
-    padding: 4vh 3vw;
+    border-radius: calc(var(--u) * 2.4);
+    padding: 4vh calc(var(--u) * 3);
     text-align: center;
-    box-shadow: 0 1.2vw 0 var(--fondo-2);
+    box-shadow: 0 calc(var(--u) * 1.2) 0 var(--fondo-2);
   }
-  .boleto h1 { font-size: 3.4vw; font-weight: 800; line-height: 1.05; }
-  .boleto p { font-size: 1.5vw; font-weight: 500; margin-top: 1vh; }
+  .boleto h1 { font-size: calc(var(--u) * 3.4); font-weight: 800; line-height: 1.05; }
+  .boleto p { font-size: calc(var(--u) * 1.5); font-weight: 500; margin-top: 1vh; }
   #qr {
     background: var(--blanco);
-    border-radius: 1.4vw;
-    padding: 1.4vw;
+    border-radius: calc(var(--u) * 1.4);
+    padding: calc(var(--u) * 1.4);
     margin: 3vh auto;
     width: max-content;
   }
   #qr img, #qr canvas { width: 30vh !important; height: 30vh !important; display: block; }
-  .pin-texto { font-size: 1.4vw; font-weight: 500; }
-  #pin { font-size: 6vw; font-weight: 800; letter-spacing: 0.6vw; line-height: 1; margin-top: 0.5vh; }
-  .sala h2 { font-size: 3vw; font-weight: 800; }
+  .pin-texto { font-size: calc(var(--u) * 1.4); font-weight: 500; }
+  #pin { font-size: calc(var(--u) * 6); font-weight: 800; letter-spacing: calc(var(--u) * 0.6); line-height: 1; margin-top: 0.5vh; }
+  .sala h2 { font-size: calc(var(--u) * 3); font-weight: 800; }
   .sala h2 span {
-    display: inline-block; min-width: 4.5vw; text-align: center;
+    display: inline-block; min-width: calc(var(--u) * 4.5); text-align: center;
     background: var(--blanco); color: var(--fondo);
-    border-radius: 3vw; padding: 0 1.2vw; margin-left: 0.8vw;
+    border-radius: calc(var(--u) * 3); padding: 0 calc(var(--u) * 1.2); margin-left: calc(var(--u) * 0.8);
   }
-  #estado { font-size: 1.5vw; color: var(--suave); margin-top: 1vh; }
-  #jugadores { list-style: none; display: flex; flex-wrap: wrap; gap: 1.2vw; margin-top: 2vh; max-height: 22vh; overflow: hidden; }
+  #estado { font-size: calc(var(--u) * 1.5); color: var(--suave); margin-top: 1vh; }
+  #jugadores { list-style: none; display: flex; flex-wrap: wrap; gap: calc(var(--u) * 1.2); margin-top: 2vh; max-height: 22vh; overflow: hidden; }
   #jugadores li {
     background: var(--chip); color: var(--tinta);
-    font-size: 2vw; font-weight: 700;
-    padding: 0.6vh 1.6vw; border-radius: 3vw;
+    font-size: calc(var(--u) * 2); font-weight: 700;
+    padding: 0.6vh calc(var(--u) * 1.6); border-radius: calc(var(--u) * 3);
     animation: entra 0.35s ease-out;
   }
-  #vacio { font-size: 1.8vw; color: var(--suave); margin-top: 2vh; }
+  #vacio { font-size: calc(var(--u) * 1.8); color: var(--suave); margin-top: 2vh; }
 
-  .eleccion { margin-top: 3vh; background: var(--fondo-2); border-radius: 1.6vw; padding: 2vh 1.6vw; }
-  .juego-actual { font-size: 1.9vw; font-weight: 700; }
+  .eleccion { margin-top: 3vh; background: var(--fondo-2); border-radius: calc(var(--u) * 1.6); padding: 2vh calc(var(--u) * 1.6); }
+  .juego-actual { font-size: calc(var(--u) * 1.9); font-weight: 700; }
   .juego-actual strong { color: var(--boleto); }
-  #juego-n { color: var(--suave); font-size: 1.5vw; font-weight: 500; }
-  .fila-codigo { display: flex; gap: 1vw; margin-top: 1.4vh; align-items: center; }
-  .fila-codigo label { font-size: 1.5vw; color: var(--suave); }
+  #juego-n { color: var(--suave); font-size: calc(var(--u) * 1.5); font-weight: 500; }
+  .fila-codigo { display: flex; gap: calc(var(--u) * 1); margin-top: 1.4vh; align-items: center; }
+  .fila-codigo label { font-size: calc(var(--u) * 1.5); color: var(--suave); }
   #codigo {
-    font: inherit; font-size: 2vw; font-weight: 800; letter-spacing: 0.4vw;
-    width: 15vw; text-transform: uppercase; padding: 0.3vh 1vw;
-    border: none; border-radius: 1vw; color: var(--tinta);
+    font: inherit; font-size: calc(var(--u) * 2); font-weight: 800; letter-spacing: calc(var(--u) * 0.4);
+    width: calc(var(--u) * 15); text-transform: uppercase; padding: 0.3vh calc(var(--u) * 1);
+    border: none; border-radius: calc(var(--u) * 1); color: var(--tinta);
   }
-  #codigo:focus { outline: 0.3vw solid var(--boleto); }
-  .boton.chico { font-size: 1.6vw; margin-top: 0; padding: 0.5vh 1.6vw; box-shadow: none; }
-  #msg-juego { font-size: 1.4vw; color: var(--suave); min-height: 1.2em; margin-top: 0.8vh; }
-  #biblioteca { display: flex; flex-wrap: wrap; gap: 0.8vw; margin-top: 0.6vh; }
+  #codigo:focus { outline: calc(var(--u) * 0.3) solid var(--boleto); }
+  .boton.chico { font-size: calc(var(--u) * 1.6); margin-top: 0; padding: 0.5vh calc(var(--u) * 1.6); box-shadow: none; }
+  #msg-juego { font-size: calc(var(--u) * 1.4); color: var(--suave); min-height: 1.2em; margin-top: 0.8vh; }
+  #biblioteca { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 0.8); margin-top: 0.6vh; }
   #biblioteca button {
-    font: inherit; font-size: 1.4vw; font-weight: 700; cursor: pointer;
+    font: inherit; font-size: calc(var(--u) * 1.4); font-weight: 700; cursor: pointer;
     background: transparent; color: var(--blanco);
-    border: 0.15vw solid var(--suave); border-radius: 2vw; padding: 0.2vh 1.2vw;
+    border: calc(var(--u) * 0.15) solid var(--suave); border-radius: calc(var(--u) * 2); padding: 0.2vh calc(var(--u) * 1.2);
   }
   #biblioteca button.activo { background: var(--boleto); color: var(--tinta); border-color: var(--boleto); }
-  #biblioteca button:focus-visible { outline: 0.3vw solid var(--blanco); outline-offset: 0.2vw; }
+  #biblioteca button:focus-visible { outline: calc(var(--u) * 0.3) solid var(--blanco); outline-offset: calc(var(--u) * 0.2); }
 
   .boton {
-    font: inherit; font-size: 2.2vw; font-weight: 800;
-    margin-top: 3vh; padding: 1.2vh 3vw;
-    border: none; border-radius: 3vw;
+    font: inherit; font-size: calc(var(--u) * 2.2); font-weight: 800;
+    margin-top: 3vh; padding: 1.2vh calc(var(--u) * 3);
+    border: none; border-radius: calc(var(--u) * 3);
     background: var(--boleto); color: var(--tinta);
     cursor: pointer;
-    box-shadow: 0 0.6vw 0 #C9A21F;
+    box-shadow: 0 calc(var(--u) * 0.6) 0 #C9A21F;
   }
   .boton:disabled { opacity: 0.45; cursor: default; }
-  .boton:focus-visible { outline: 0.4vw solid var(--blanco); outline-offset: 0.4vw; }
+  .boton:focus-visible { outline: calc(var(--u) * 0.4) solid var(--blanco); outline-offset: calc(var(--u) * 0.4); }
 
   /* ---------- Pregunta ---------- */
   #juego {
@@ -118,47 +120,49 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto auto minmax(0, 1fr) auto;
-    column-gap: 3vw;
-    padding: 4vh 4vw;
+    overflow: hidden;
+    column-gap: calc(var(--u) * 3);
+    padding: 4vh calc(var(--u) * 4);
   }
-  .barra { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; font-size: 1.8vw; color: var(--suave); font-weight: 700; }
+  .barra { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; font-size: calc(var(--u) * 1.8); color: var(--suave); font-weight: 700; }
   #reloj {
-    width: 7vw; height: 7vw; border-radius: 50%;
+    width: calc(var(--u) * 7); height: calc(var(--u) * 7); border-radius: 50%;
     background: var(--blanco); color: var(--fondo);
     display: grid; place-items: center;
-    font-size: 3.4vw; font-weight: 800;
+    font-size: calc(var(--u) * 3.4); font-weight: 800;
   }
-  #texto-pregunta { grid-column: 1; font-size: 3.6vw; font-weight: 800; line-height: 1.1; margin: 2vh 0 3vh; max-width: 60ch; }
-  #opciones { grid-column: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 1.6vw; align-content: stretch; }
+  #texto-pregunta { grid-column: 1; grid-row: 2; font-size: calc(var(--u) * 3.6); font-weight: 800; line-height: 1.1; margin: 2vh 0 3vh; max-width: 60ch; }
+  #opciones { grid-column: 1; grid-row: 3; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: calc(var(--u) * 1.6); }
   .opcion {
-    border-radius: 1.6vw; padding: 2vh 2vw;
-    display: flex; align-items: center; gap: 1.4vw;
-    font-size: 2.6vw; font-weight: 700; color: var(--blanco);
+    min-height: 0; overflow: hidden;
+    border-radius: calc(var(--u) * 1.6); padding: 2vh calc(var(--u) * 2);
+    display: flex; align-items: center; gap: calc(var(--u) * 1.4);
+    font-size: calc(var(--u) * 2.6); font-weight: 700; color: var(--blanco);
     transition: opacity 0.3s, transform 0.3s;
   }
-  .opcion .forma { font-size: 2.4vw; width: 3vw; text-align: center; }
-  .opcion .votos { margin-left: auto; font-size: 2.2vw; background: rgba(0,0,0,0.22); border-radius: 2vw; padding: 0 1.2vw; }
+  .opcion .forma { font-size: calc(var(--u) * 2.4); width: calc(var(--u) * 3); text-align: center; }
+  .opcion .votos { margin-left: auto; font-size: calc(var(--u) * 2.2); background: rgba(0,0,0,0.22); border-radius: calc(var(--u) * 2); padding: 0 calc(var(--u) * 1.2); }
   .opcion[data-i="0"] { background: var(--op0); }
   .opcion[data-i="1"] { background: var(--op1); color: var(--tinta); }
   .opcion[data-i="2"] { background: var(--op2); }
   .opcion[data-i="3"] { background: var(--op3); }
   .opcion.apagada { opacity: 0.28; }
-  .opcion.correcta { transform: scale(1.03); box-shadow: 0 0 0 0.5vw var(--blanco); }
-  .pie { grid-column: 1; display: flex; justify-content: space-between; align-items: center; margin-top: 2vh; }
-  #respondieron { font-size: 1.8vw; color: var(--suave); }
+  .opcion.correcta { transform: scale(1.03); box-shadow: 0 0 0 calc(var(--u) * 0.5) var(--blanco); }
+  .pie { grid-column: 1; grid-row: 4; display: flex; justify-content: space-between; align-items: center; margin-top: 2vh; }
+  #respondieron { font-size: calc(var(--u) * 1.8); color: var(--suave); }
   .pie .boton { margin-top: 0; }
 
-  #ranking-caja { grid-column: 2; grid-row: 3 / 5; width: 26vw; background: var(--fondo-2); border-radius: 1.6vw; padding: 2.5vh 2vw; align-self: start; }
-  #ranking-caja h2 { font-size: 2.2vw; font-weight: 800; margin-bottom: 1vh; }
+  #ranking-caja { grid-column: 2; grid-row: 2 / 5; max-height: 100%; overflow: hidden; width: calc(var(--u) * 26); background: var(--fondo-2); border-radius: calc(var(--u) * 1.6); padding: 2.5vh calc(var(--u) * 2); align-self: start; }
+  #ranking-caja h2 { font-size: calc(var(--u) * 2.2); font-weight: 800; margin-bottom: 1vh; }
   .tabla { list-style: none; }
-  .tabla li { display: flex; justify-content: space-between; font-size: 1.9vw; font-weight: 700; padding: 0.5vh 0; border-bottom: 0.15vw solid rgba(255,255,255,0.15); }
+  .tabla li { display: flex; justify-content: space-between; font-size: calc(var(--u) * 1.9); font-weight: 700; padding: 0.5vh 0; border-bottom: calc(var(--u) * 0.15) solid rgba(255,255,255,0.15); }
   .tabla li span:last-child { color: var(--boleto); }
 
   /* ---------- Final ---------- */
-  #final { height: 100%; display: grid; place-content: center; text-align: center; padding: 4vh 4vw; }
-  #final h1 { font-size: 5vw; font-weight: 800; }
-  #ganador { font-size: 2.4vw; color: var(--boleto); margin: 1vh 0 3vh; }
-  #podio { width: 44vw; margin: 0 auto; }
+  #final { height: 100%; display: grid; place-content: center; text-align: center; padding: 4vh calc(var(--u) * 4); }
+  #final h1 { font-size: calc(var(--u) * 5); font-weight: 800; }
+  #ganador { font-size: calc(var(--u) * 2.4); color: var(--boleto); margin: 1vh 0 3vh; }
+  #podio { width: calc(var(--u) * 44); margin: 0 auto; }
 
   @keyframes entra { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { #jugadores li { animation: none; } .opcion { transition: none; } }
@@ -220,7 +224,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '7';
+  const VERSION = '8';
 
   // Preguntas de respaldo (se usan si no se puede cargar ningún juego)
   let PREGUNTAS = [
@@ -467,6 +471,15 @@
   $('empezar').addEventListener('click', () => { if (jugadores.size && PREGUNTAS.length) siguientePregunta(); });
   $('siguiente').addEventListener('click', siguientePregunta);
   $('otra').addEventListener('click', reiniciar);
+
+  // Atajo: Enter, espacio o flecha derecha pasan a la siguiente pregunta
+  document.addEventListener('keydown', e => {
+    if (fase !== 'revelado' || document.activeElement === $('codigo')) return;
+    if (['Enter', ' ', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault();
+      siguientePregunta();
+    }
+  });
 
   canal.subscribe(situacion => {
     if (situacion === 'SUBSCRIBED') {
