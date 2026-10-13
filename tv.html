@@ -247,6 +247,12 @@
         </span>
       </div>
       <p id="resumen-equipos" hidden></p>
+      <div class="modo" id="zona-bots" hidden>
+        <span class="et">Prueba</span>
+        <button class="pildora" id="mas-bot">🤖 + 1 bot</button>
+        <button class="pildora" id="mas-5-bots">+ 5 bots</button>
+        <button class="pildora" id="quitar-bots">Quitar bots</button>
+      </div>
     </div>
     <button class="boton" id="empezar" disabled>Empezar juego</button>
   </section>
@@ -283,7 +289,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '11';
+  const VERSION = '12';
 
   // Preguntas de respaldo (se usan si no se puede cargar ningún juego)
   let PREGUNTAS = [
@@ -514,7 +520,7 @@
   });
   setInterval(() => {
     const ahora = Date.now();
-    for (const [id, j] of jugadores) if (ahora - j.visto > 15000) jugadores.delete(id);
+    for (const [id, j] of jugadores) if (!j.bot && ahora - j.visto > 15000) jugadores.delete(id);
     mostrarJugadores();
   }, 3000);
 
@@ -555,6 +561,7 @@
     inicio = Date.now();
     enviar('pregunta', { indice, total: PREGUNTAS.length, tipo: p.tipo || 'multiple', texto: p.texto, opciones: p.opciones, tiempo: tiempoActual, conImagen: imagenValida(p.imagen) });
     Sonido.musica('pregunta');
+    programarBots(p);
     let ultimoSegundo = null;
     clearInterval(relojId);
     relojId = setInterval(() => {
@@ -572,14 +579,70 @@
     $('respondieron').textContent = 'Respuestas: ' + respuestas.size + ' de ' + jugadores.size;
   }
 
-  canal.on('broadcast', { event: 'respuesta' }, ({ payload }) => {
-    if (fase !== 'pregunta' || !payload || payload.indice !== indice || respuestas.has(payload.id)) return;
-    const opcion = Number(payload.opcion);
+  function registrarRespuesta(id, ind, opcionRecibida) {
+    if (fase !== 'pregunta' || !id || ind !== indice || respuestas.has(id)) return;
+    const opcion = Number(opcionRecibida);
     if (!(opcion >= 0 && opcion < PREGUNTAS[indice].opciones.length)) return;
-    respuestas.set(payload.id, { opcion, ms: Date.now() - inicio });
+    respuestas.set(id, { opcion, ms: Date.now() - inicio });
     actualizarConteo();
     if (respuestas.size >= jugadores.size) revelar();
+  }
+
+  canal.on('broadcast', { event: 'respuesta' }, ({ payload }) => {
+    if (payload) registrarRespuesta(payload.id, payload.indice, payload.opcion);
   });
+
+  // ---------- Jugadores de prueba (bots) ----------
+  // Se activan abriendo la TV con ?bots=1 en el enlace
+  const NOMBRES_BOT = ['Ana', 'Beto', 'Coni', 'Dani', 'Eli', 'Fede', 'Gabi', 'Hugo', 'Isa', 'Juan', 'Kati', 'Lalo'];
+  const ACIERTO_BOT = 0.6; // probabilidad de que un bot acierte
+  let numBot = 0;
+
+  if (new URLSearchParams(location.search).has('bots')) $('zona-bots').hidden = false;
+
+  function agregarBot() {
+    if (jugadores.size >= 50) return;
+    numBot++;
+    const id = 'bot-' + numBot;
+    jugadores.set(id, {
+      nombre: 'Bot ' + NOMBRES_BOT[(numBot - 1) % NOMBRES_BOT.length] + (numBot > NOMBRES_BOT.length ? ' ' + Math.ceil(numBot / NOMBRES_BOT.length) : ''),
+      avatar: AVATARES[Math.floor(Math.random() * AVATARES.length)],
+      visto: Date.now(),
+      bot: true
+    });
+    Sonido.efecto('pop');
+    mostrarJugadores();
+  }
+
+  function quitarBots() {
+    for (const id of [...jugadores.keys()]) {
+      if (id.startsWith('bot-')) { jugadores.delete(id); asignacion.delete(id); puntajes.delete(id); }
+    }
+    ultimaLista = '';
+    mostrarJugadores();
+    if (modo === 'equipos') avisarEquipos();
+  }
+
+  function programarBots(p) {
+    const miIndice = indice;
+    for (const [id, j] of jugadores) {
+      if (!j.bot) continue;
+      const espera = (0.15 + Math.random() * 0.7) * tiempoActual * 1000;
+      setTimeout(() => {
+        if (fase !== 'pregunta' || indice !== miIndice) return;
+        let opcion = p.correcta;
+        if (Math.random() > ACIERTO_BOT) {
+          const otras = p.opciones.map((_, i) => i).filter(i => i !== p.correcta);
+          opcion = otras[Math.floor(Math.random() * otras.length)];
+        }
+        registrarRespuesta(id, miIndice, opcion);
+      }, espera);
+    }
+  }
+
+  $('mas-bot').addEventListener('click', agregarBot);
+  $('mas-5-bots').addEventListener('click', () => { for (let i = 0; i < 5; i++) agregarBot(); });
+  $('quitar-bots').addEventListener('click', quitarBots);
 
   function revelar() {
     if (fase !== 'pregunta') return;
