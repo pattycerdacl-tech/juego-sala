@@ -86,6 +86,9 @@
   .resp[data-i="2"] { background: var(--op2); }
   .resp[data-i="3"] { background: var(--op3); }
   .resp:active { transform: scale(0.97); }
+  .botones.dos .resp { min-height: 200px; }
+  .botones.dos .resp .txt { font-size: 24px; }
+  .ver-tv { text-align: center; font-size: 16px; font-weight: 700; margin: -8px 0 12px; opacity: 0.9; }
 
   .grande { font-size: 64px; line-height: 1; margin: 6px 0; }
   .equipo-badge {
@@ -138,6 +141,7 @@
     <div class="centro"><span class="equipo-badge" id="badge-pregunta" hidden></span></div>
     <p class="cabeza" id="num-pregunta"></p>
     <h2 id="texto-pregunta"></h2>
+    <p class="ver-tv" id="ver-tv" hidden>📺 Mira la imagen en la TV</p>
     <div class="botones">
       <button class="resp" data-i="0"><span class="forma">▲</span><span class="txt"></span></button>
       <button class="resp" data-i="1"><span class="forma">◆</span><span class="txt"></span></button>
@@ -175,7 +179,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '10';
+  const VERSION = '11';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -296,8 +300,12 @@
       yaRespondi = false;
       $('num-pregunta').textContent = 'Pregunta ' + (payload.indice + 1) + ' de ' + payload.total;
       $('texto-pregunta').textContent = payload.texto;
+      const cuantas = payload.opciones.length;
+      document.querySelector('.botones').classList.toggle('dos', cuantas === 2);
+      $('ver-tv').hidden = !payload.conImagen;
       document.querySelectorAll('.resp').forEach((b, i) => {
-        b.querySelector('.txt').textContent = payload.opciones[i];
+        b.hidden = i >= cuantas;
+        b.querySelector('.txt').textContent = payload.opciones[i] || '';
         b.disabled = false;
       });
       verPantalla('pregunta');
