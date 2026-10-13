@@ -69,18 +69,41 @@
     border-radius: 3vw; padding: 0 1.2vw; margin-left: 0.8vw;
   }
   #estado { font-size: 1.5vw; color: var(--suave); margin-top: 1vh; }
-  #jugadores { list-style: none; display: flex; flex-wrap: wrap; gap: 1.2vw; margin-top: 4vh; max-height: 46vh; overflow: hidden; }
+  #jugadores { list-style: none; display: flex; flex-wrap: wrap; gap: 1.2vw; margin-top: 2vh; max-height: 22vh; overflow: hidden; }
   #jugadores li {
     background: var(--chip); color: var(--tinta);
     font-size: 2vw; font-weight: 700;
     padding: 0.6vh 1.6vw; border-radius: 3vw;
     animation: entra 0.35s ease-out;
   }
-  #vacio { font-size: 1.8vw; color: var(--suave); margin-top: 4vh; }
+  #vacio { font-size: 1.8vw; color: var(--suave); margin-top: 2vh; }
+
+  .eleccion { margin-top: 3vh; background: var(--fondo-2); border-radius: 1.6vw; padding: 2vh 1.6vw; }
+  .juego-actual { font-size: 1.9vw; font-weight: 700; }
+  .juego-actual strong { color: var(--boleto); }
+  #juego-n { color: var(--suave); font-size: 1.5vw; font-weight: 500; }
+  .fila-codigo { display: flex; gap: 1vw; margin-top: 1.4vh; align-items: center; }
+  .fila-codigo label { font-size: 1.5vw; color: var(--suave); }
+  #codigo {
+    font: inherit; font-size: 2vw; font-weight: 800; letter-spacing: 0.4vw;
+    width: 15vw; text-transform: uppercase; padding: 0.3vh 1vw;
+    border: none; border-radius: 1vw; color: var(--tinta);
+  }
+  #codigo:focus { outline: 0.3vw solid var(--boleto); }
+  .boton.chico { font-size: 1.6vw; margin-top: 0; padding: 0.5vh 1.6vw; box-shadow: none; }
+  #msg-juego { font-size: 1.4vw; color: var(--suave); min-height: 1.2em; margin-top: 0.8vh; }
+  #biblioteca { display: flex; flex-wrap: wrap; gap: 0.8vw; margin-top: 0.6vh; }
+  #biblioteca button {
+    font: inherit; font-size: 1.4vw; font-weight: 700; cursor: pointer;
+    background: transparent; color: var(--blanco);
+    border: 0.15vw solid var(--suave); border-radius: 2vw; padding: 0.2vh 1.2vw;
+  }
+  #biblioteca button.activo { background: var(--boleto); color: var(--tinta); border-color: var(--boleto); }
+  #biblioteca button:focus-visible { outline: 0.3vw solid var(--blanco); outline-offset: 0.2vw; }
 
   .boton {
     font: inherit; font-size: 2.2vw; font-weight: 800;
-    margin-top: 4vh; padding: 1.2vh 3vw;
+    margin-top: 3vh; padding: 1.2vh 3vw;
     border: none; border-radius: 3vw;
     background: var(--boleto); color: var(--tinta);
     cursor: pointer;
@@ -156,6 +179,16 @@
     <p id="estado">Conectando con el servidor…</p>
     <p id="vacio">Todavía no hay nadie. El primero en escanear el código aparecerá aquí.</p>
     <ul id="jugadores"></ul>
+    <div class="eleccion">
+      <p class="juego-actual">Juego: <strong id="juego-titulo">Trivia de prueba</strong> <span id="juego-n"></span></p>
+      <div class="fila-codigo">
+        <label for="codigo">Código</label>
+        <input id="codigo" maxlength="6" autocomplete="off" placeholder="XXXXXX">
+        <button class="boton chico" id="cargar">Cargar</button>
+      </div>
+      <p id="msg-juego" role="status"></p>
+      <div id="biblioteca"></div>
+    </div>
     <button class="boton" id="empezar" disabled>Empezar juego</button>
   </section>
 </main>
@@ -187,15 +220,16 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '5';
+  const VERSION = '7';
 
-  // Preguntas de prueba (más adelante vendrán del panel de creación)
-  const TIEMPO = 20; // segundos por pregunta
-  const PREGUNTAS = [
-    { texto: '¿Cuál es el planeta más grande del sistema solar?', opciones: ['Júpiter', 'Saturno', 'Tierra', 'Marte'], correcta: 0 },
-    { texto: '¿Cuántas patas tiene una araña?', opciones: ['6', '8', '10', '12'], correcta: 1 },
-    { texto: '¿En qué continente está Egipto?', opciones: ['Asia', 'Europa', 'África', 'Oceanía'], correcta: 2 }
+  // Preguntas de respaldo (se usan si no se puede cargar ningún juego)
+  let PREGUNTAS = [
+    { texto: '¿Cuál es el planeta más grande del sistema solar?', opciones: ['Júpiter', 'Saturno', 'Tierra', 'Marte'], correcta: 0, tiempo: 20 },
+    { texto: '¿Cuántas patas tiene una araña?', opciones: ['6', '8', '10', '12'], correcta: 1, tiempo: 20 },
+    { texto: '¿En qué continente está Egipto?', opciones: ['Asia', 'Europa', 'África', 'Oceanía'], correcta: 2, tiempo: 20 }
   ];
+  let codigoActual = '';
+  let tiempoActual = 20;
 
   const $ = id => document.getElementById(id);
 
@@ -219,7 +253,7 @@
 
   function mostrarJugadores() {
     const nombres = [...jugadores.values()].map(j => j.nombre);
-    $('empezar').disabled = nombres.length === 0;
+    $('empezar').disabled = nombres.length === 0 || PREGUNTAS.length === 0;
     const firma = nombres.join('|');
     if (firma === ultimaLista) return;
     ultimaLista = firma;
@@ -262,6 +296,7 @@
     const p = PREGUNTAS[indice];
     fase = 'pregunta';
     respuestas.clear();
+    tiempoActual = Number(p.tiempo) || 20;
     verPantalla('juego');
     $('num-pregunta').textContent = 'Pregunta ' + (indice + 1) + ' de ' + PREGUNTAS.length;
     $('texto-pregunta').textContent = p.texto;
@@ -274,10 +309,10 @@
     $('siguiente').hidden = true;
     actualizarConteo();
     inicio = Date.now();
-    enviar('pregunta', { indice, total: PREGUNTAS.length, texto: p.texto, opciones: p.opciones, tiempo: TIEMPO });
+    enviar('pregunta', { indice, total: PREGUNTAS.length, texto: p.texto, opciones: p.opciones, tiempo: tiempoActual });
     clearInterval(relojId);
     relojId = setInterval(() => {
-      const quedan = Math.max(0, Math.ceil(TIEMPO - (Date.now() - inicio) / 1000));
+      const quedan = Math.max(0, Math.ceil(tiempoActual - (Date.now() - inicio) / 1000));
       $('reloj').textContent = quedan;
       if (quedan === 0) revelar();
     }, 250);
@@ -307,7 +342,7 @@
     for (const [id, r] of respuestas) {
       votos[r.opcion]++;
       const acerto = r.opcion === p.correcta;
-      const ganados = acerto ? Math.round(1000 * (1 - Math.min(r.ms, TIEMPO * 1000) / (TIEMPO * 1000) / 2)) : 0;
+      const ganados = acerto ? Math.round(1000 * (1 - Math.min(r.ms, tiempoActual * 1000) / (tiempoActual * 1000) / 2)) : 0;
       if (!puntajes.has(id)) puntajes.set(id, { nombre: (jugadores.get(id) || {}).nombre || 'Jugador', puntos: 0 });
       puntajes.get(id).puntos += ganados;
       resultado[id] = { acerto, ganados };
@@ -369,7 +404,67 @@
     enviar('reinicio', {});
   }
 
-  $('empezar').addEventListener('click', () => { if (jugadores.size) siguientePregunta(); });
+  // ---------- 4. Elegir juego ----------
+  function preguntasValidas(lista) {
+    return Array.isArray(lista) && lista.length > 0 && lista.every(p =>
+      p && typeof p.texto === 'string' && Array.isArray(p.opciones) && p.opciones.length === 4 &&
+      Number.isInteger(p.correcta) && p.correcta >= 0 && p.correcta <= 3);
+  }
+
+  function aplicarJuego(j) {
+    PREGUNTAS = j.preguntas;
+    codigoActual = j.codigo;
+    $('juego-titulo').textContent = j.titulo;
+    $('juego-n').textContent = '(' + j.preguntas.length + (j.preguntas.length === 1 ? ' pregunta)' : ' preguntas)');
+    document.querySelectorAll('#biblioteca button').forEach(b => b.classList.toggle('activo', b.dataset.codigo === j.codigo));
+    mostrarJugadores();
+  }
+
+  async function cargarPorCodigo(codigo) {
+    codigo = String(codigo || '').trim().toUpperCase();
+    if (!/^[0-9A-F]{6}$/.test(codigo)) { $('msg-juego').textContent = 'El código tiene 6 caracteres (números y letras de la A a la F).'; return; }
+    $('msg-juego').textContent = 'Buscando ' + codigo + '…';
+    const { data, error } = await cliente.rpc('juego_por_codigo', { p_codigo: codigo });
+    if (error) { $('msg-juego').textContent = 'No se pudo buscar el juego. Revisa internet e inténtalo de nuevo.'; return; }
+    const j = data && data[0];
+    if (!j) { $('msg-juego').textContent = 'No existe un juego con el código ' + codigo + '.'; return; }
+    if (!preguntasValidas(j.preguntas)) { $('msg-juego').textContent = 'El juego ' + codigo + ' no tiene preguntas completas. Revísalo en el panel.'; return; }
+    aplicarJuego(j);
+    $('msg-juego').textContent = 'Juego cargado: ' + j.titulo + '.';
+    $('codigo').value = '';
+  }
+
+  async function cargarBiblioteca() {
+    const { data, error } = await cliente
+      .from('juegos')
+      .select('codigo, titulo, preguntas')
+      .eq('publico', true)
+      .order('creado_en', { ascending: false })
+      .limit(6);
+    if (error || !data) return;
+    const cont = $('biblioteca');
+    cont.innerHTML = '';
+    data.filter(j => preguntasValidas(j.preguntas)).forEach(j => {
+      const b = document.createElement('button');
+      b.textContent = j.titulo;
+      b.dataset.codigo = j.codigo;
+      b.addEventListener('click', () => { aplicarJuego(j); $('msg-juego').textContent = 'Juego elegido: ' + j.titulo + '.'; });
+      cont.appendChild(b);
+    });
+    // Al abrir: usa el código del enlace (?juego=XXXXXX) o el juego público más reciente
+    const delEnlace = new URLSearchParams(location.search).get('juego');
+    if (delEnlace) cargarPorCodigo(delEnlace);
+    else if (!codigoActual && data.length) {
+      const primero = data.find(j => preguntasValidas(j.preguntas));
+      if (primero) aplicarJuego(primero);
+    }
+  }
+
+  $('cargar').addEventListener('click', () => cargarPorCodigo($('codigo').value));
+  $('codigo').addEventListener('keydown', e => { if (e.key === 'Enter') cargarPorCodigo($('codigo').value); });
+  cargarBiblioteca();
+
+  $('empezar').addEventListener('click', () => { if (jugadores.size && PREGUNTAS.length) siguientePregunta(); });
   $('siguiente').addEventListener('click', siguientePregunta);
   $('otra').addEventListener('click', reiniciar);
 
