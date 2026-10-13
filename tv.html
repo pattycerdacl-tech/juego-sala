@@ -132,6 +132,8 @@
     padding: 0.3vh calc(var(--u) * 1.4);
   }
   .boton-sonido:focus-visible { outline: calc(var(--u) * 0.3) solid var(--blanco); outline-offset: calc(var(--u) * 0.2); }
+  .logo { display: block; max-height: 12vh; max-width: 80%; object-fit: contain; margin: 0 auto 1.5vh; }
+  #mensaje-final { font-size: calc(var(--u) * 2); margin: 0 auto 2vh; max-width: 60ch; }
   #mejor { font-size: calc(var(--u) * 1.8); color: var(--suave); margin-top: 2vh; }
   #biblioteca button.activo { background: var(--boleto); color: var(--tinta); border-color: var(--boleto); }
   #biblioteca button:focus-visible { outline: calc(var(--u) * 0.3) solid var(--blanco); outline-offset: calc(var(--u) * 0.2); }
@@ -214,7 +216,8 @@
 
 <main id="lobby">
   <section class="boleto">
-    <h1>¡A jugar!</h1>
+    <img class="logo" alt="Logo" hidden>
+    <h1 id="bienvenida">¡A jugar!</h1>
     <p>Escanea el código con tu teléfono</p>
     <div id="qr"></div>
     <div class="pin-texto">o entra con el PIN de la sala</div>
@@ -278,7 +281,9 @@
 </main>
 
 <main id="final" hidden>
+  <img class="logo" alt="Logo" hidden>
   <h1>¡Fin del juego!</h1>
+  <p id="mensaje-final" hidden></p>
   <p id="ganador"></p>
   <ol class="tabla" id="podio"></ol>
   <p id="mejor"></p>
@@ -289,7 +294,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '12';
+  const VERSION = '13';
 
   // Preguntas de respaldo (se usan si no se puede cargar ningún juego)
   let PREGUNTAS = [
@@ -512,7 +517,7 @@
     const nuevo = !jugadores.has(payload.id);
     jugadores.set(payload.id, { nombre, avatar, visto: Date.now() });
     if (puntajes.has(payload.id)) Object.assign(puntajes.get(payload.id), { nombre, avatar });
-    if (nuevo) Sonido.efecto('pop');
+    if (nuevo) { Sonido.efecto('pop'); enviar('tema', temaActual); }
     mostrarJugadores();
   });
   canal.on('broadcast', { event: 'adios' }, ({ payload }) => {
@@ -742,6 +747,48 @@
 
   // ---------- 4. Elegir juego ----------
   const imagenValida = u => typeof u === 'string' && u.startsWith('https://');
+  const TEMAS = {
+    azul:      { nombre: 'Azul clásico', fondo: '#2433A6', fondo2: '#1C2885', boleto: '#FFD23F', chip: '#FF7A59', suave: '#C9D0FF' },
+    noche:     { nombre: 'Noche',        fondo: '#1B1F3B', fondo2: '#12152B', boleto: '#7CE0D3', chip: '#FF8FB1', suave: '#B9C0E8' },
+    selva:     { nombre: 'Selva',        fondo: '#1F6B4A', fondo2: '#164F37', boleto: '#FFD23F', chip: '#FF9F43', suave: '#C8EBD9' },
+    atardecer: { nombre: 'Atardecer',    fondo: '#B83B5E', fondo2: '#8E2C48', boleto: '#FFD369', chip: '#FFB4A2', suave: '#FFD9E0' },
+    morado:    { nombre: 'Morado',       fondo: '#5B2A86', fondo2: '#43206A', boleto: '#FFC145', chip: '#4ECDC4', suave: '#DCC9F0' },
+    oceano:    { nombre: 'Océano',       fondo: '#0B6E99', fondo2: '#08516F', boleto: '#FFE066', chip: '#FF6B6B', suave: '#C5EAF7' }
+  };
+
+  // ---------- Apariencia del juego ----------
+  const urlSegura = u => typeof u === 'string' && /^https:\/\/[^"'()\s]+$/.test(u);
+  let temaActual = {};
+
+  function aplicarTema(c) {
+    c = c || {};
+    const t = TEMAS[c.tema] || TEMAS.azul;
+    const raiz = document.documentElement.style;
+    raiz.setProperty('--fondo', t.fondo);
+    raiz.setProperty('--fondo-2', t.fondo2);
+    raiz.setProperty('--boleto', t.boleto);
+    raiz.setProperty('--chip', t.chip);
+    raiz.setProperty('--suave', t.suave);
+    document.body.style.background = urlSegura(c.fondo)
+      ? 'linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url("' + c.fondo + '") center / cover no-repeat, ' + t.fondo
+      : '';
+    document.querySelectorAll('.logo').forEach(img => {
+      if (urlSegura(c.logo)) { img.src = c.logo; img.hidden = false; }
+      else { img.hidden = true; img.removeAttribute('src'); }
+    });
+    temaActual = {
+      tema: TEMAS[c.tema] ? c.tema : 'azul',
+      fondo: urlSegura(c.fondo) ? c.fondo : null,
+      logo: urlSegura(c.logo) ? c.logo : null,
+      bienvenida: String(c.bienvenida || '').trim().slice(0, 60),
+      mensajeFinal: String(c.mensajeFinal || '').trim().slice(0, 120)
+    };
+    $('bienvenida').textContent = temaActual.bienvenida || '¡A jugar!';
+    $('mensaje-final').textContent = temaActual.mensajeFinal;
+    $('mensaje-final').hidden = !temaActual.mensajeFinal;
+    enviar('tema', temaActual);
+  }
+
 
   function preguntasValidas(lista) {
     return Array.isArray(lista) && lista.length > 0 && lista.every(p =>
@@ -751,6 +798,7 @@
   }
 
   function aplicarJuego(j) {
+    aplicarTema(j.config);
     PREGUNTAS = j.preguntas;
     // Precargar las imágenes para que aparezcan al instante
     j.preguntas.forEach(p => { if (imagenValida(p.imagen)) new Image().src = p.imagen; });
@@ -778,7 +826,7 @@
   async function cargarBiblioteca() {
     const { data, error } = await cliente
       .from('juegos')
-      .select('codigo, titulo, preguntas')
+      .select('codigo, titulo, preguntas, config')
       .eq('publico', true)
       .order('creado_en', { ascending: false })
       .limit(6);
