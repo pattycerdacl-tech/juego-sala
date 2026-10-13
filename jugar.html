@@ -174,6 +174,7 @@
     <p class="texto" id="fin-mensaje" hidden></p>
     <p class="texto" id="fin-detalle"></p>
     <p class="texto" id="fin-equipo"></p>
+    <button class="principal" id="bajar-diploma" hidden>📜 Descargar mi diploma</button>
     <p class="nota">Si el anfitrión elige "Jugar otra vez", vuelves a la sala automáticamente.</p>
   </section>
 
@@ -184,7 +185,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '14';
+  const VERSION = '15';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -212,7 +213,7 @@
   const urlSegura = u => typeof u === 'string' && /^https:\/\/[^"'()\s]+$/.test(u);
   let temaActual = {};
 
-  function aplicarTema(c) {
+  function aplicarTema(c, titulo) {
     c = c || {};
     const t = TEMAS[c.tema] || TEMAS.azul;
     const raiz = document.documentElement.style;
@@ -233,12 +234,104 @@
       fondo: urlSegura(c.fondo) ? c.fondo : null,
       logo: urlSegura(c.logo) ? c.logo : null,
       bienvenida: String(c.bienvenida || '').trim().slice(0, 60),
-      mensajeFinal: String(c.mensajeFinal || '').trim().slice(0, 120)
+      mensajeFinal: String(c.mensajeFinal || '').trim().slice(0, 120),
+      juego: String(titulo || c.juego || '').slice(0, 80),
+      diploma: {
+        activo: !(c.diploma && c.diploma.activo === false),
+        texto: String((c.diploma && c.diploma.texto) || '').trim().slice(0, 100)
+      }
     };
     $('bienvenida-espera').textContent = temaActual.bienvenida;
     $('bienvenida-espera').hidden = !temaActual.bienvenida;
     $('fin-mensaje').textContent = temaActual.mensajeFinal;
     $('fin-mensaje').hidden = !temaActual.mensajeFinal;
+  }
+
+
+  // ---------- Diploma descargable (se dibuja en el navegador) ----------
+  function envolverTexto(c, texto, x, y, ancho, alto) {
+    const palabras = String(texto).split(' ');
+    let linea = '';
+    for (const p of palabras) {
+      const prueba = linea ? linea + ' ' + p : p;
+      if (c.measureText(prueba).width > ancho && linea) { c.fillText(linea, x, y); linea = p; y += alto; }
+      else linea = prueba;
+    }
+    if (linea) c.fillText(linea, x, y);
+  }
+
+  function cargarImagenCors(url) {
+    return new Promise(resolver => {
+      if (!url) return resolver(null);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolver(img);
+      img.onerror = () => resolver(null);
+      img.src = url;
+    });
+  }
+
+  async function descargarDiploma(d) {
+    const W = 1600, H = 1131;
+    const lienzo = document.createElement('canvas');
+    lienzo.width = W; lienzo.height = H;
+    const c = lienzo.getContext('2d');
+    const css = getComputedStyle(document.documentElement);
+    const fondo = css.getPropertyValue('--fondo').trim() || '#2433A6';
+    const acento = css.getPropertyValue('--boleto').trim() || '#FFD23F';
+    const fuente = '"Baloo 2", "Trebuchet MS", sans-serif';
+    try { await document.fonts.load('800 80px "Baloo 2"'); } catch (e) {}
+
+    c.fillStyle = '#FFFDF5'; c.fillRect(0, 0, W, H);
+    c.strokeStyle = fondo; c.lineWidth = 36; c.strokeRect(18, 18, W - 36, H - 36);
+    c.strokeStyle = acento; c.lineWidth = 10; c.strokeRect(58, 58, W - 116, H - 116);
+    c.textAlign = 'center';
+
+    let y = 290;
+    const logo = await cargarImagenCors(d.logo);
+    if (logo) {
+      const alto = 140, ancho = Math.min(500, logo.width * alto / logo.height);
+      c.drawImage(logo, W / 2 - ancho / 2, 110, ancho, alto);
+      y = 360;
+    }
+    c.fillStyle = fondo; c.font = '800 110px ' + fuente; c.fillText('DIPLOMA', W / 2, y);
+    c.fillStyle = '#55597A'; c.font = '500 40px ' + fuente; c.fillText('Se otorga a', W / 2, y + 80);
+    c.fillStyle = '#1A1A2E'; c.font = '800 96px ' + fuente; c.fillText(d.nombre, W / 2, y + 200);
+    c.fillStyle = fondo; c.font = '700 52px ' + fuente; c.fillText(d.linea1 || '', W / 2, y + 290);
+    c.fillStyle = '#1A1A2E'; c.font = '500 40px ' + fuente; c.fillText(d.linea2 || '', W / 2, y + 355);
+    if (d.texto) { c.fillStyle = '#55597A'; c.font = 'italic 500 36px ' + fuente; envolverTexto(c, d.texto, W / 2, y + 430, W - 400, 46); }
+    c.fillStyle = '#55597A'; c.font = '500 32px ' + fuente;
+    const fecha = new Date().toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' });
+    c.fillText((d.juego ? d.juego + '  ·  ' : '') + fecha, W / 2, H - 120);
+
+    lienzo.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'diploma-' + String(d.nombre).replace(/[^\wáéíóúñ-]+/gi, '-').toLowerCase() + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }, 'image/png');
+  }
+
+  const lugarTexto = n => n === 1 ? '1.er lugar' : n + '.º lugar';
+  const miles = n => Number(n || 0).toLocaleString('es');
+
+  let ultimoFinal = null;
+  function diplomaPropio() {
+    if (!ultimoFinal) return;
+    const f = ultimoFinal;
+    const mio = f.ranking.find(r => r.id === miId);
+    const linea1 = f.mostrarPuesto !== false && mio
+      ? (mio.puesto === 1 ? '🏆 ' : '') + lugarTexto(mio.puesto) + (mio.puntos ? ' con ' + miles(mio.puntos) + ' puntos' : '')
+      : 'Por su gran participación';
+    const partes = [];
+    if (modoEquipos && miEquipo !== null && miEquipo !== undefined && nombresEquipos[miEquipo]) partes.push('Equipo ' + nombresEquipos[miEquipo]);
+    if (f.aciertos && f.aciertos[miId] !== undefined) partes.push('Acertó ' + f.aciertos[miId] + ' de ' + f.total + ' preguntas');
+    descargarDiploma({
+      nombre: miAvatar + ' ' + miNombre, linea1, linea2: partes.join('  ·  '),
+      texto: temaActual.diploma ? temaActual.diploma.texto : '', juego: temaActual.juego, logo: temaActual.logo
+    });
   }
 
   const miId = 'j-' + Math.random().toString(36).slice(2, 10);
@@ -391,6 +484,8 @@
 
     // Fin del juego
     canal.on('broadcast', { event: 'final' }, ({ payload }) => {
+      ultimoFinal = payload;
+      $('bajar-diploma').hidden = !(temaActual.diploma && temaActual.diploma.activo);
       const mio = payload.ranking.find(r => r.id === miId);
       if (mio) {
         $('fin-icono').textContent = mio.puesto === 1 ? '🏆' : mio.puesto <= 3 ? '🎉' : '🏁';
@@ -442,6 +537,8 @@
       verPantalla('enviado');
     });
   });
+
+  $('bajar-diploma').addEventListener('click', diplomaPropio);
 
   window.addEventListener('pagehide', () => {
     if (canal) canal.send({ type: 'broadcast', event: 'adios', payload: { id: miId } });
