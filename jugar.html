@@ -184,7 +184,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '13';
+  const VERSION = '14';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -376,6 +376,14 @@
         $('res-titulo').textContent = 'Incorrecto';
         $('res-detalle').textContent = 'Llevas ' + mio.total + ' puntos.';
       }
+      // Reglas: sin puntaje y bono por racha
+      if (payload.mostrarPuntos === false) {
+        if (mio && mio.acerto) $('res-titulo').textContent = '¡Correcto!';
+        $('res-detalle').textContent = '';
+      }
+      if (mio && mio.racha >= 2) {
+        $('res-detalle').textContent = ($('res-detalle').textContent + ' 🔥 ¡Racha de ' + mio.racha + ' aciertos!').trim();
+      }
       $('res-equipo').textContent = textoEquipo(payload.equipos, false);
       sonar(mio && mio.acerto ? 'bien' : 'mal');
       verPantalla('resultado');
@@ -389,6 +397,14 @@
         $('fin-detalle').textContent = 'Quedaste en el lugar ' + mio.puesto + ' con ' + mio.puntos + ' puntos.';
       } else {
         $('fin-detalle').textContent = 'Gracias por jugar.';
+      }
+      if (payload.mostrarPuesto === false) {
+        $('fin-icono').textContent = '🎉';
+        $('fin-detalle').textContent = '¡Bien jugado!';
+      }
+      const misAciertos = payload.aciertos ? payload.aciertos[miId] : undefined;
+      if (misAciertos !== undefined) {
+        $('fin-detalle').textContent += ' Acertaste ' + misAciertos + ' de ' + payload.total + ' preguntas.';
       }
       $('fin-equipo').textContent = textoEquipo(payload.equipos, true);
       if (modoEquipos && payload.equipos && payload.equipos[0] && payload.equipos[0].indice === miEquipo) $('fin-icono').textContent = '🏆';
