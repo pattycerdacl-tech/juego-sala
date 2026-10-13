@@ -108,6 +108,8 @@
   }
   .avatar[aria-pressed="true"] { border-color: var(--tinta); background: var(--chip); }
   .avatar-grande { font-size: 64px; line-height: 1; margin-top: 12px; }
+  .logo { display: block; max-height: 80px; max-width: 70%; object-fit: contain; margin: 0 auto 10px; }
+  #bienvenida-espera { font-size: 19px; font-weight: 700; margin-top: 10px; }
   #conexion { font-size: 14px; color: var(--blanco); opacity: 0.7; text-align: center; margin-top: 16px; }
 </style>
 </head>
@@ -129,7 +131,9 @@
   </section>
 
   <section class="tarjeta" id="espera" hidden>
+    <img class="logo" alt="Logo" hidden>
     <h1>¡Ya estás dentro!</h1>
+    <p id="bienvenida-espera" hidden></p>
     <div class="avatar-grande" id="mi-avatar"></div>
     <div class="nombre" id="mi-nombre"></div>
     <div><span class="equipo-badge" id="badge-espera" hidden></span></div>
@@ -167,6 +171,7 @@
   <section class="tarjeta" id="final" hidden>
     <div class="grande" id="fin-icono">🏁</div>
     <h1>¡Fin del juego!</h1>
+    <p class="texto" id="fin-mensaje" hidden></p>
     <p class="texto" id="fin-detalle"></p>
     <p class="texto" id="fin-equipo"></p>
     <p class="nota">Si el anfitrión elige "Jugar otra vez", vuelves a la sala automáticamente.</p>
@@ -179,7 +184,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '11';
+  const VERSION = '13';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -192,6 +197,48 @@
     $('sala-arriba').textContent = 'Sala ' + pinDelEnlace + ' (v' + VERSION + ')';
   } else {
     $('sala-arriba').textContent = 'Escribe el PIN que aparece en la TV. (v' + VERSION + ')';
+  }
+
+  const TEMAS = {
+    azul:      { nombre: 'Azul clásico', fondo: '#2433A6', fondo2: '#1C2885', boleto: '#FFD23F', chip: '#FF7A59', suave: '#C9D0FF' },
+    noche:     { nombre: 'Noche',        fondo: '#1B1F3B', fondo2: '#12152B', boleto: '#7CE0D3', chip: '#FF8FB1', suave: '#B9C0E8' },
+    selva:     { nombre: 'Selva',        fondo: '#1F6B4A', fondo2: '#164F37', boleto: '#FFD23F', chip: '#FF9F43', suave: '#C8EBD9' },
+    atardecer: { nombre: 'Atardecer',    fondo: '#B83B5E', fondo2: '#8E2C48', boleto: '#FFD369', chip: '#FFB4A2', suave: '#FFD9E0' },
+    morado:    { nombre: 'Morado',       fondo: '#5B2A86', fondo2: '#43206A', boleto: '#FFC145', chip: '#4ECDC4', suave: '#DCC9F0' },
+    oceano:    { nombre: 'Océano',       fondo: '#0B6E99', fondo2: '#08516F', boleto: '#FFE066', chip: '#FF6B6B', suave: '#C5EAF7' }
+  };
+
+  // ---------- Apariencia del juego ----------
+  const urlSegura = u => typeof u === 'string' && /^https:\/\/[^"'()\s]+$/.test(u);
+  let temaActual = {};
+
+  function aplicarTema(c) {
+    c = c || {};
+    const t = TEMAS[c.tema] || TEMAS.azul;
+    const raiz = document.documentElement.style;
+    raiz.setProperty('--fondo', t.fondo);
+    raiz.setProperty('--fondo-2', t.fondo2);
+    raiz.setProperty('--boleto', t.boleto);
+    raiz.setProperty('--chip', t.chip);
+    raiz.setProperty('--suave', t.suave);
+    document.body.style.background = urlSegura(c.fondo)
+      ? 'linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url("' + c.fondo + '") center / cover no-repeat, ' + t.fondo
+      : '';
+    document.querySelectorAll('.logo').forEach(img => {
+      if (urlSegura(c.logo)) { img.src = c.logo; img.hidden = false; }
+      else { img.hidden = true; img.removeAttribute('src'); }
+    });
+    temaActual = {
+      tema: TEMAS[c.tema] ? c.tema : 'azul',
+      fondo: urlSegura(c.fondo) ? c.fondo : null,
+      logo: urlSegura(c.logo) ? c.logo : null,
+      bienvenida: String(c.bienvenida || '').trim().slice(0, 60),
+      mensajeFinal: String(c.mensajeFinal || '').trim().slice(0, 120)
+    };
+    $('bienvenida-espera').textContent = temaActual.bienvenida;
+    $('bienvenida-espera').hidden = !temaActual.bienvenida;
+    $('fin-mensaje').textContent = temaActual.mensajeFinal;
+    $('fin-mensaje').hidden = !temaActual.mensajeFinal;
   }
 
   const miId = 'j-' + Math.random().toString(36).slice(2, 10);
@@ -287,6 +334,8 @@
     canal = cliente.channel('sala-' + pin);
 
     // La TV informa el modo y los equipos
+    canal.on('broadcast', { event: 'tema' }, ({ payload }) => aplicarTema(payload));
+
     canal.on('broadcast', { event: 'equipos' }, ({ payload }) => {
       modoEquipos = payload.modo === 'equipos';
       nombresEquipos = payload.equipos || [];
