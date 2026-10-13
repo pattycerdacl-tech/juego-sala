@@ -124,6 +124,14 @@
   .marca[data-eq="1"] { background: var(--op1); }
   .marca[data-eq="2"] { background: var(--op2); }
   .marca[data-eq="3"] { background: var(--op3); }
+  .boton-sonido {
+    position: fixed; top: calc(var(--u) * 1.2); left: 50%; transform: translateX(-50%); z-index: 5;
+    font: inherit; font-size: calc(var(--u) * 1.4); font-weight: 700; cursor: pointer;
+    background: var(--fondo-2); color: var(--blanco);
+    border: calc(var(--u) * 0.15) solid var(--suave); border-radius: calc(var(--u) * 2);
+    padding: 0.3vh calc(var(--u) * 1.4);
+  }
+  .boton-sonido:focus-visible { outline: calc(var(--u) * 0.3) solid var(--blanco); outline-offset: calc(var(--u) * 0.2); }
   #mejor { font-size: calc(var(--u) * 1.8); color: var(--suave); margin-top: 2vh; }
   #biblioteca button.activo { background: var(--boleto); color: var(--tinta); border-color: var(--boleto); }
   #biblioteca button:focus-visible { outline: calc(var(--u) * 0.3) solid var(--blanco); outline-offset: calc(var(--u) * 0.2); }
@@ -195,6 +203,8 @@
 </head>
 <body>
 
+<button class="boton-sonido" id="sonido">🔇 Activar sonido</button>
+
 <main id="lobby">
   <section class="boleto">
     <h1>¡A jugar!</h1>
@@ -263,7 +273,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '9';
+  const VERSION = '10';
 
   // Preguntas de respaldo (se usan si no se puede cargar ningún juego)
   let PREGUNTAS = [
@@ -275,6 +285,77 @@
   let tiempoActual = 20;
 
   const $ = id => document.getElementById(id);
+
+  // ---------- Sonido: música y efectos creados por el navegador (sin archivos) ----------
+  const Sonido = (() => {
+    let ctx = null, master = null, activo = false, deseada = 'lobby';
+    let temporizador = null, paso = 0, proximo = 0, patron = null;
+    const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+    const PATRONES = {
+      lobby:    { bpm: 104, acordes: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]], bajo: [48, 45, 41, 43], vol: 0.06 },
+      pregunta: { bpm: 132, acordes: [[57, 60, 64], [53, 57, 60], [55, 59, 62], [52, 56, 59]], bajo: [45, 41, 43, 40], vol: 0.05 }
+    };
+
+    function nota(freq, t, dur, tipo, vol) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = tipo; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(master);
+      o.start(t); o.stop(t + dur + 0.05);
+    }
+
+    function programar() {
+      while (proximo < ctx.currentTime + 0.2) {
+        const dur = 60 / patron.bpm / 2;
+        const compas = Math.floor(paso / 8) % 4, s = paso % 8;
+        const acorde = patron.acordes[compas];
+        nota(hz(acorde[[0, 1, 2, 1, 0, 1, 2, 1][s]] + 12), proximo, dur * 0.9, 'triangle', patron.vol);
+        if (s === 0 || s === 4) nota(hz(patron.bajo[compas]), proximo, dur * 1.8, 'sine', patron.vol * 2.4);
+        paso++; proximo += dur;
+      }
+    }
+
+    function arrancar() {
+      clearInterval(temporizador); temporizador = null;
+      if (!activo || !deseada) return;
+      patron = PATRONES[deseada]; paso = 0; proximo = ctx.currentTime + 0.05;
+      temporizador = setInterval(programar, 50);
+    }
+
+    const EFECTOS = {
+      pop:     [[76, 0, 0.08, 'sine', 0.2], [83, 0.06, 0.12, 'sine', 0.18]],
+      tic:     [[96, 0, 0.05, 'square', 0.05]],
+      revelar: [[60, 0, 0.15, 'triangle', 0.2], [64, 0.09, 0.15, 'triangle', 0.2], [67, 0.18, 0.15, 'triangle', 0.2], [72, 0.27, 0.4, 'triangle', 0.22]],
+      fin:     [[67, 0, 0.18, 'square', 0.1], [67, 0.2, 0.12, 'square', 0.1], [72, 0.34, 0.7, 'square', 0.12],
+                [60, 0.34, 0.9, 'triangle', 0.15], [64, 0.34, 0.9, 'triangle', 0.15], [76, 0.34, 0.9, 'triangle', 0.1]]
+    };
+
+    return {
+      get activo() { return activo; },
+      activar() {
+        if (!ctx) {
+          ctx = new (window.AudioContext || window.webkitAudioContext)();
+          master = ctx.createGain(); master.gain.value = 0.6; master.connect(ctx.destination);
+        }
+        if (ctx.state === 'suspended') ctx.resume();
+        activo = true; arrancar();
+      },
+      desactivar() { activo = false; arrancar(); },
+      musica(nombre) { deseada = nombre; arrancar(); },
+      efecto(nombre) {
+        if (!activo || !ctx) return;
+        const t = ctx.currentTime + 0.02;
+        EFECTOS[nombre].forEach(([m, d, dur, tipo, vol]) => nota(hz(m), t + d, dur, tipo, vol));
+      }
+    };
+  })();
+
+  $('sonido').addEventListener('click', () => {
+    if (Sonido.activo) { Sonido.desactivar(); $('sonido').textContent = '🔇 Activar sonido'; }
+    else { Sonido.activar(); $('sonido').textContent = '🔊 Sonido activado'; }
+  });
 
   // ---------- 1. Sala, PIN y QR ----------
   const pin = String(Math.floor(100000 + Math.random() * 900000));
@@ -291,6 +372,7 @@
 
   // ---------- 2. Jugadores conectados ----------
   let fase = 'lobby';
+  const AVATARES = ['🐶', '🐱', '🦊', '🐼', '🐸', '🐵', '🦁', '🐯', '🐨', '🐷', '🐙', '🦄'];
   const jugadores = new Map();   // id -> { nombre, visto }
   const puntajes = new Map();    // id -> { nombre, puntos }
   let ultimaLista = '';
@@ -340,9 +422,9 @@
 
   function mostrarJugadores() {
     if (modo === 'equipos' && asignarNuevos()) avisarEquipos();
-    const lista = [...jugadores.entries()].map(([id, j]) => ({ id, nombre: j.nombre, eq: asignacion.get(id) }));
+    const lista = [...jugadores.entries()].map(([id, j]) => ({ id, nombre: j.nombre, avatar: j.avatar, eq: asignacion.get(id) }));
     $('empezar').disabled = lista.length === 0 || PREGUNTAS.length === 0;
-    const firma = modo + numEquipos + lista.map(j => j.nombre + (modo === 'equipos' ? j.eq : '')).join('|');
+    const firma = modo + numEquipos + lista.map(j => j.avatar + j.nombre + (modo === 'equipos' ? j.eq : '')).join('|');
     if (firma === ultimaLista) return;
     ultimaLista = firma;
     $('jugadores').innerHTML = '';
@@ -350,9 +432,9 @@
       const li = document.createElement('li');
       if (modo === 'equipos' && j.eq !== undefined) {
         li.dataset.eq = j.eq;
-        li.textContent = EQUIPOS[j.eq].forma + ' ' + j.nombre;
+        li.textContent = EQUIPOS[j.eq].forma + ' ' + j.avatar + ' ' + j.nombre;
       } else {
-        li.textContent = j.nombre;
+        li.textContent = j.avatar + ' ' + j.nombre;
       }
       $('jugadores').appendChild(li);
     });
@@ -410,8 +492,11 @@
   canal.on('broadcast', { event: 'hola' }, ({ payload }) => {
     if (!payload || !payload.id || !payload.nombre) return;
     const nombre = String(payload.nombre).slice(0, 16);
-    jugadores.set(payload.id, { nombre, visto: Date.now() });
-    if (puntajes.has(payload.id)) puntajes.get(payload.id).nombre = nombre;
+    const avatar = AVATARES.includes(payload.avatar) ? payload.avatar : '🙂';
+    const nuevo = !jugadores.has(payload.id);
+    jugadores.set(payload.id, { nombre, avatar, visto: Date.now() });
+    if (puntajes.has(payload.id)) Object.assign(puntajes.get(payload.id), { nombre, avatar });
+    if (nuevo) Sonido.efecto('pop');
     mostrarJugadores();
   });
   canal.on('broadcast', { event: 'adios' }, ({ payload }) => {
@@ -453,10 +538,16 @@
     actualizarConteo();
     inicio = Date.now();
     enviar('pregunta', { indice, total: PREGUNTAS.length, texto: p.texto, opciones: p.opciones, tiempo: tiempoActual });
+    Sonido.musica('pregunta');
+    let ultimoSegundo = null;
     clearInterval(relojId);
     relojId = setInterval(() => {
       const quedan = Math.max(0, Math.ceil(tiempoActual - (Date.now() - inicio) / 1000));
       $('reloj').textContent = quedan;
+      if (quedan !== ultimoSegundo) {
+        ultimoSegundo = quedan;
+        if (quedan > 0 && quedan <= 5) Sonido.efecto('tic');
+      }
       if (quedan === 0) revelar();
     }, 250);
   }
@@ -478,6 +569,8 @@
     if (fase !== 'pregunta') return;
     fase = 'revelado';
     clearInterval(relojId);
+    Sonido.musica(null);
+    Sonido.efecto('revelar');
     const p = PREGUNTAS[indice];
     const votos = [0, 0, 0, 0];
     const resultado = {};
@@ -486,7 +579,7 @@
       votos[r.opcion]++;
       const acerto = r.opcion === p.correcta;
       const ganados = acerto ? Math.round(1000 * (1 - Math.min(r.ms, tiempoActual * 1000) / (tiempoActual * 1000) / 2)) : 0;
-      if (!puntajes.has(id)) puntajes.set(id, { nombre: (jugadores.get(id) || {}).nombre || 'Jugador', puntos: 0 });
+      if (!puntajes.has(id)) { const j = jugadores.get(id) || {}; puntajes.set(id, { nombre: j.nombre || 'Jugador', avatar: j.avatar || '🙂', puntos: 0 }); }
       puntajes.get(id).puntos += ganados;
       resultado[id] = { acerto, ganados };
     }
@@ -519,7 +612,7 @@
   }
 
   function ordenados() {
-    return [...puntajes.entries()].map(([id, s]) => ({ id, nombre: s.nombre, puntos: s.puntos }))
+    return [...puntajes.entries()].map(([id, s]) => ({ id, nombre: s.nombre, avatar: s.avatar || '🙂', puntos: s.puntos }))
       .sort((a, b) => b.puntos - a.puntos);
   }
 
@@ -527,7 +620,7 @@
     ol.innerHTML = '';
     ordenados().slice(0, max).forEach((j, i) => {
       const li = document.createElement('li');
-      const a = document.createElement('span'); a.textContent = (i + 1) + '. ' + j.nombre;
+      const a = document.createElement('span'); a.textContent = (i + 1) + '. ' + j.avatar + ' ' + j.nombre;
       const b = document.createElement('span'); b.textContent = j.puntos;
       li.append(a, b); ol.appendChild(li);
     });
@@ -535,6 +628,8 @@
 
   function finalizar() {
     fase = 'final';
+    Sonido.musica(null);
+    Sonido.efecto('fin');
     verPantalla('final');
     const lista = ordenados();
     let equipos = null;
@@ -542,9 +637,9 @@
       equipos = rankingEquipos();
       $('ganador').textContent = '🏆 Gana el equipo ' + equipos[0].nombre + ' con ' + equipos[0].puntos + ' puntos';
       mostrarTablaEquipos($('podio'));
-      $('mejor').textContent = lista.length ? 'Mejor jugador: ' + lista[0].nombre + ' (' + lista[0].puntos + ' puntos)' : '';
+      $('mejor').textContent = lista.length ? 'Mejor jugador: ' + lista[0].avatar + ' ' + lista[0].nombre + ' (' + lista[0].puntos + ' puntos)' : '';
     } else {
-      $('ganador').textContent = lista.length ? '🏆 Gana ' + lista[0].nombre + ' con ' + lista[0].puntos + ' puntos' : '';
+      $('ganador').textContent = lista.length ? '🏆 Gana ' + lista[0].avatar + ' ' + lista[0].nombre + ' con ' + lista[0].puntos + ' puntos' : '';
       mostrarTabla($('podio'), 8);
       $('mejor').textContent = '';
     }
@@ -553,6 +648,7 @@
   }
 
   function reiniciar() {
+    Sonido.musica('lobby');
     fase = 'lobby';
     indice = -1;
     puntajes.clear();
