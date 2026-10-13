@@ -119,6 +119,17 @@
   .imagen-zona { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
   .imagen-zona img { max-height: 160px; max-width: 100%; border-radius: 12px; border: 2px solid var(--linea); }
   .imagen-zona .estado { color: var(--gris); font-size: 15px; }
+  .seccion-config { margin-top: 16px; }
+  .seccion-config h3 { font-size: 22px; font-weight: 800; }
+  .seccion-config .ayuda { color: var(--gris); font-size: 15px; }
+  .temas { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 4px; }
+  .tema {
+    display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+    background: var(--blanco); color: var(--tinta); border-color: var(--linea); padding: 8px;
+  }
+  .tema[aria-pressed="true"] { border-color: var(--tinta); box-shadow: 0 0 0 2px var(--tinta); }
+  .muestra { display: flex; height: 34px; border-radius: 8px; overflow: hidden; }
+  .muestra span { flex: 1; }
   .acciones-editor { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; align-items: center; }
   .barra-guardar {
     position: sticky; bottom: 0; background: var(--papel);
@@ -204,6 +215,21 @@
       </div>
     </div>
 
+    <div class="tarjeta seccion-config" id="apariencia">
+      <h3>🎨 Apariencia</h3>
+      <p class="ayuda">Se aplica en la TV y en los teléfonos cuando se carga este juego.</p>
+      <label id="et-temas">Colores</label>
+      <div class="temas" id="temas" role="group" aria-labelledby="et-temas"></div>
+      <label for="c-bienvenida">Mensaje de bienvenida (en la sala de espera)</label>
+      <input type="text" id="c-bienvenida" maxlength="60" placeholder="¡A jugar!">
+      <label for="c-final">Mensaje final (al terminar el juego)</label>
+      <input type="text" id="c-final" maxlength="120" placeholder="Ej.: ¡Gracias por jugar! Feliz cumpleaños, Sofi 🎂">
+      <label>Logo (opcional)</label>
+      <div class="imagen-zona" id="zona-logo"></div>
+      <label>Imagen de fondo (opcional)</label>
+      <div class="imagen-zona" id="zona-fondo"></div>
+    </div>
+
     <div id="lista-preguntas"></div>
 
     <div class="acciones-editor">
@@ -221,7 +247,7 @@
   // Datos de tu proyecto en Supabase (la clave anon es pública por diseño)
   const SUPABASE_URL = 'https://vxtahijhzlelbrhmhgwg.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dGFoaWpoemxlbGJyaG1oZ3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzMyMDEsImV4cCI6MjEwNzQwOTIwMX0.se_aYzHILX_ZCiGljbF3quHaByHl8w6Oql4Vxf0YjVA';
-  const VERSION = '11';
+  const VERSION = '13';
 
   const $ = id => document.getElementById(id);
   const cliente = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -230,6 +256,16 @@
   let usuario = null;
   let editandoId = null;    // null = juego nuevo
   let preguntas = [];
+  let config = {};
+  const TEMAS = {
+    azul:      { nombre: 'Azul clásico', fondo: '#2433A6', fondo2: '#1C2885', boleto: '#FFD23F', chip: '#FF7A59', suave: '#C9D0FF' },
+    noche:     { nombre: 'Noche',        fondo: '#1B1F3B', fondo2: '#12152B', boleto: '#7CE0D3', chip: '#FF8FB1', suave: '#B9C0E8' },
+    selva:     { nombre: 'Selva',        fondo: '#1F6B4A', fondo2: '#164F37', boleto: '#FFD23F', chip: '#FF9F43', suave: '#C8EBD9' },
+    atardecer: { nombre: 'Atardecer',    fondo: '#B83B5E', fondo2: '#8E2C48', boleto: '#FFD369', chip: '#FFB4A2', suave: '#FFD9E0' },
+    morado:    { nombre: 'Morado',       fondo: '#5B2A86', fondo2: '#43206A', boleto: '#FFC145', chip: '#4ECDC4', suave: '#DCC9F0' },
+    oceano:    { nombre: 'Océano',       fondo: '#0B6E99', fondo2: '#08516F', boleto: '#FFE066', chip: '#FF6B6B', suave: '#C5EAF7' }
+  };
+
 
   function mensaje(id, texto, tipo) {
     const el = $(id);
@@ -293,7 +329,7 @@
     mensaje('msg-lista', 'Cargando…');
     const { data, error } = await cliente
       .from('juegos')
-      .select('id, titulo, descripcion, codigo, categoria, publico, preguntas, creado_en')
+      .select('id, titulo, descripcion, codigo, categoria, publico, preguntas, config, creado_en')
       .eq('autor', usuario.id)
       .order('creado_en', { ascending: false });
     if (error) return mensaje('msg-lista', 'No se pudieron cargar tus juegos: ' + error.message, 'error');
@@ -355,6 +391,10 @@
     $('j-descripcion').value = juego ? (juego.descripcion || '') : '';
     $('j-categoria').value = juego ? (juego.categoria || 'General') : 'General';
     $('j-publico').checked = juego ? !!juego.publico : false;
+    config = juego && juego.config ? JSON.parse(JSON.stringify(juego.config)) : {};
+    $('c-bienvenida').value = config.bienvenida || '';
+    $('c-final').value = config.mensajeFinal || '';
+    dibujarApariencia();
     preguntas = juego && juego.preguntas && juego.preguntas.length
       ? JSON.parse(JSON.stringify(juego.preguntas))
       : [preguntaVacia()];
@@ -367,7 +407,7 @@
   // ---------- Imágenes: achicar en el navegador y subir a Supabase ----------
   let subiendo = 0;
 
-  function achicarImagen(archivo, maximo = 1280) {
+  function achicarImagen(archivo, maximo = 1280, formato = 'image/jpeg') {
     return new Promise((resolver, rechazar) => {
       const url = URL.createObjectURL(archivo);
       const img = new Image();
@@ -377,43 +417,109 @@
         lienzo.width = Math.round(img.width * escala);
         lienzo.height = Math.round(img.height * escala);
         const c = lienzo.getContext('2d');
-        c.fillStyle = '#FFFFFF';
-        c.fillRect(0, 0, lienzo.width, lienzo.height);
+        if (formato === 'image/jpeg') { c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, lienzo.width, lienzo.height); }
         c.drawImage(img, 0, 0, lienzo.width, lienzo.height);
         URL.revokeObjectURL(url);
-        lienzo.toBlob(b => b ? resolver(b) : rechazar(new Error('No se pudo procesar la imagen')), 'image/jpeg', 0.82);
+        lienzo.toBlob(b => b ? resolver(b) : rechazar(new Error('No se pudo procesar la imagen')), formato, 0.82);
       };
       img.onerror = () => { URL.revokeObjectURL(url); rechazar(new Error('El archivo no es una imagen válida')); };
       img.src = url;
     });
   }
 
-  async function subirImagen(archivo, p, estado) {
+  // Sube una imagen achicada y devuelve su dirección pública (o null si falla)
+  async function subirArchivo(archivo, estado, maximo = 1280, formato = 'image/jpeg') {
     subiendo++;
     estado.textContent = 'Subiendo imagen…';
     try {
-      const blob = await achicarImagen(archivo);
-      const ruta = usuario.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
-      const { error } = await cliente.storage.from('imagenes').upload(ruta, blob, { contentType: 'image/jpeg' });
+      const blob = await achicarImagen(archivo, maximo, formato);
+      const ext = formato === 'image/png' ? '.png' : '.jpg';
+      const ruta = usuario.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext;
+      const { error } = await cliente.storage.from('imagenes').upload(ruta, blob, { contentType: formato });
       if (error) throw error;
-      p.imagen = cliente.storage.from('imagenes').getPublicUrl(ruta).data.publicUrl;
-      subiendo--;
-      dibujarPreguntas();
-      mensaje('msg-editor', 'Imagen lista. Recuerda pulsar "Guardar juego".', 'ok');
+      estado.textContent = '';
+      return cliente.storage.from('imagenes').getPublicUrl(ruta).data.publicUrl;
     } catch (e) {
-      subiendo--;
       estado.textContent = 'No se pudo subir: ' + (e.message || e);
+      return null;
+    } finally {
+      subiendo--;
     }
   }
 
-  function quitarImagen(p) {
+  function borrarDeStorage(url) {
     const marca = '/object/public/imagenes/';
-    if (p.imagen && p.imagen.includes(marca)) {
-      const ruta = decodeURIComponent(p.imagen.split(marca)[1]);
-      cliente.storage.from('imagenes').remove([ruta]); // si falla, no importa
+    if (url && url.includes(marca)) {
+      cliente.storage.from('imagenes').remove([decodeURIComponent(url.split(marca)[1])]); // si falla, no importa
     }
+  }
+
+  async function subirImagen(archivo, p, estado) {
+    const url = await subirArchivo(archivo, estado);
+    if (!url) return;
+    p.imagen = url;
+    dibujarPreguntas();
+    mensaje('msg-editor', 'Imagen lista. Recuerda pulsar "Guardar juego".', 'ok');
+  }
+
+  function quitarImagen(p) {
+    borrarDeStorage(p.imagen);
     p.imagen = null;
     dibujarPreguntas();
+  }
+
+  // Zona reutilizable: vista previa + "Quitar", o botón para subir
+  function zonaImagen(cont, url, textoBoton, alSubir, alQuitar, maximo, formato) {
+    cont.innerHTML = '';
+    const estado = document.createElement('span'); estado.className = 'estado';
+    if (url) {
+      const vista = document.createElement('img'); vista.src = url; vista.alt = 'Vista previa';
+      const bQuitar = document.createElement('button');
+      bQuitar.className = 'peligro'; bQuitar.textContent = 'Quitar';
+      bQuitar.addEventListener('click', alQuitar);
+      cont.append(vista, bQuitar);
+    } else {
+      const archivo = document.createElement('input');
+      archivo.type = 'file'; archivo.accept = 'image/*'; archivo.hidden = true;
+      archivo.addEventListener('change', async () => {
+        if (!archivo.files[0]) return;
+        const nueva = await subirArchivo(archivo.files[0], estado, maximo, formato);
+        if (nueva) alSubir(nueva);
+      });
+      const bSubir = document.createElement('button');
+      bSubir.className = 'secundario'; bSubir.textContent = textoBoton;
+      bSubir.addEventListener('click', () => archivo.click());
+      cont.append(bSubir, archivo, estado);
+    }
+  }
+
+  function dibujarApariencia() {
+    // Temas de colores
+    const cont = $('temas');
+    cont.innerHTML = '';
+    const elegido = TEMAS[config.tema] ? config.tema : 'azul';
+    Object.entries(TEMAS).forEach(([clave, t]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'tema';
+      b.setAttribute('aria-pressed', clave === elegido);
+      const muestra = document.createElement('div'); muestra.className = 'muestra';
+      [t.fondo, t.boleto, t.chip].forEach(color => {
+        const franja = document.createElement('span'); franja.style.background = color; muestra.appendChild(franja);
+      });
+      const nombre = document.createElement('span'); nombre.textContent = t.nombre;
+      b.append(muestra, nombre);
+      b.addEventListener('click', () => { config.tema = clave; dibujarApariencia(); });
+      cont.appendChild(b);
+    });
+    // Logo (PNG para conservar transparencia) y fondo
+    zonaImagen($('zona-logo'), config.logo, '🖼️ Subir logo',
+      url => { config.logo = url; dibujarApariencia(); },
+      () => { borrarDeStorage(config.logo); config.logo = null; dibujarApariencia(); },
+      512, 'image/png');
+    zonaImagen($('zona-fondo'), config.fondo, '🌄 Subir imagen de fondo',
+      url => { config.fondo = url; dibujarApariencia(); },
+      () => { borrarDeStorage(config.fondo); config.fondo = null; dibujarApariencia(); },
+      1920, 'image/jpeg');
   }
 
   function dibujarPreguntas() {
@@ -568,6 +674,14 @@
       descripcion: $('j-descripcion').value.trim() || null,
       categoria: $('j-categoria').value,
       publico: $('j-publico').checked,
+      config: {
+        ...config,
+        tema: TEMAS[config.tema] ? config.tema : 'azul',
+        bienvenida: $('c-bienvenida').value.trim(),
+        mensajeFinal: $('c-final').value.trim(),
+        logo: config.logo || null,
+        fondo: config.fondo || null
+      },
       preguntas: preguntas.map(({ _multi, ...resto }) => ({ ...resto, imagen: resto.imagen || null }))
     };
 
